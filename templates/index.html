@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>Image Reviewer - 업로드</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 40px; }
+    .card { max-width: 560px; padding: 24px; border: 1px solid #ddd; border-radius: 12px; }
+    .top { margin-bottom: 16px; color:#333; }
+    .err { color: #c00; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>🖼️ Image Reviewer (Web)</h1>
+  <div class="top">검수자: <b>{{ reviewer }}</b> · <a href="{{ url_for('home') }}">← 홈으로</a></div>
+
+  <div class="card">
+    <form method="post" enctype="multipart/form-data">
+      <p><b>엑셀 업로드</b> (.xls / .xlsx / .xlsm)</p>
+      <input type="file" name="excel" accept=".xls,.xlsx,.xlsm" required />
+      <div style="margin-top:16px;">
+        <button type="submit">업로드</button>
+      </div>
+    </form>
+    {% if error %}
+      <div class="err">{{ error }}</div>
+    {% endif %}
+  </div>
+</body>
+</html>

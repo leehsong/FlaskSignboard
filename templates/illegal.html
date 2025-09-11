@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>신고/불법 간판 검수</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 20px; }
+    .layout { display:grid; grid-template-columns: 260px 420px 1fr; gap:16px; }
+    .panel { border:1px solid #ddd; border-radius:10px; padding:12px; min-height:520px; }
+
+    /* 리스트 공통 */
+    ul.list { list-style:none; padding:0; margin:0; }
+    ul.list li { padding:6px 8px; cursor:pointer; border-bottom:1px solid #f1f1f1; }
+    ul.list li:hover, ul.list li:focus { background:#f5f8ff; outline:none; }
+    ul.list li.selected, ul.list li[aria-selected="true"] { background:#e8f1ff; }
+    .scroll { max-height: 720px; overflow:auto; border:1px solid #eee; border-radius:6px; }
+
+    /* 회사 패널 */
+    .toolbar { display:flex; gap:6px; margin:6px 0 8px; }
+    .toolbar .btn { padding:6px 10px; border:1px solid #bbb; border-radius:6px; background:#fff; cursor:pointer; }
+    .toolbar .btn.active { background:#0ea5e9; color:#fff; border-color:#0ea5e9; }
+    .searchbox { display:flex; gap:6px; margin:6px 0; }
+    .searchbox input { flex:1; padding:8px; border:1px solid #ccc; border-radius:6px; }
+
+    .companyWrap { display:flex; flex-direction:column; gap:10px; }
+    .companyListBox { max-height:750px; overflow:auto; border:1px solid #eee; border-radius:6px; }
+    .reviewTable { width:100%; border-collapse: collapse; margin-top:6px; }
+    .reviewTable th, .reviewTable td { border-bottom:1px solid #eee; padding:6px 8px; font-size:13px; text-align:left; }
+    .reviewTable th { background:#fafafa; }
+
+    /* 간판 그리드 */
+    .sign-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap:12px; }
+    .card { border:1px solid #ddd; border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:8px; }
+    .card img { width:100%; height:auto; max-height: 280px; object-fit:contain; border:1px solid #eee; border-radius:6px; background:#fff; }
+    .kv { font-size:13px; color:#333; line-height:1.3; }
+    .kv .row { display:grid; grid-template-columns: 120px 1fr; gap:6px; }
+    .kv .inline { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .kv select { padding:6px; min-width:220px; }
+    .card-actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:6px; }
+
+    /* 하단 카드 */
+    .goaddr-card, .plus-card {
+      border:1px dashed #bbb; border-radius:10px;
+      display:flex; align-items:center; justify-content:center;
+      height: 200px; cursor:pointer; color:#666; font-size:18px; padding:16px; text-align:center;
+    }
+    .plus-card { font-size:60px; color:#bbb; }
+    .goaddr-card:hover, .plus-card:hover { background:#f8fafc; color:#0ea5e9; border-color:#0ea5e9; }
+
+    .muted { color:#666; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h2>신고/불법 간판 검수</h2>
+
+  <div class="layout">
+    <!-- 동 패널 -->
+    <div class="panel">
+      <div><b>동 선택</b></div>
+      <div class="scroll" style="margin-top:8px;">
+        <ul id="dongList" class="list" role="listbox" tabindex="0" aria-label="동 목록"></ul>
+      </div>
+    </div>
+
+    <!-- 회사 패널 -->
+    <div class="panel companyWrap">
+      <div>
+        <div class="toolbar" role="tablist" aria-label="회사 필터">
+          <button id="fltAll"  class="btn active" data-filter="all"  role="tab" aria-selected="true">전체</button>
+          <button id="fltDone" class="btn"        data-filter="done" role="tab" aria-selected="false">검수필</button>
+          <button id="fltNeed" class="btn"        data-filter="need" role="tab" aria-selected="false">검수 필요</button>
+        </div>
+        <div class="searchbox">
+          <input id="companySearch" type="search" placeholder="회사명 검색..." />
+          <button id="btnSearch">검색</button>
+        </div>
+        <div class="companyListBox">
+          <ul id="companyList" class="list" role="listbox" tabindex="0" aria-label="회사 목록"></ul>
+        </div>
+        <div class="muted" id="companyHint" style="margin-top:6px;"></div>
+      </div>
+
+      <div>
+        <div style="font-weight:600; margin:10px 0 6px;">회사 단위 검수 코멘트</div>
+        <textarea id="f_company_review" rows="4" placeholder="이 회사 전체에 대한 검수/조치 메모"></textarea>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:6px;">
+          <button id="btnCompanyReviewSave">회사 검수 저장</button>
+        </div>
+
+        <div style="font-weight:600; margin:12px 0 6px;">회사 검수 히스토리</div>
+        <table class="reviewTable">
+          <thead><tr><th style="width:160px;">일시</th><th style="width:120px;">검수자</th><th>코멘트</th></tr></thead>
+          <tbody id="companyHistBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 간판 패널 -->
+    <div class="panel">
+      <div style="font-weight:600;">간판 목록</div>
+      <div id="signGrid" class="sign-grid" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <!-- 공용 파일 입력(이미지 교체) -->
+  <input type="file" id="fileReplace" accept="image/*" style="display:none;">
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // ===== 라벨 매핑(수정 가능) =====
+  const SBF_LABELS = {
+    "SBF01":"허가","SBF02":"신고","SBF03":"허가신고배제",
+    "SBF04":"무허가요건구비","SBF06":"무신고요건구비",
+    "SBF08":"요건불비(수량초과)","SBF09":"요건불비(위치장소위반)",
+    "SBF10":"요건불비(규격위반)","SBF11":"요건불비(표시방법위반)"
+  };
+  const SBD_LABELS = {
+    "SBD1":"전광(간접조명이용)","SBD2":"네온사인","SBD3":"일반전기","SBD4":"화공",
+    "SBD5":"비조명","SBD6":"간접조명","SBD9":"기타재료"
+  };
+  const SBC_LABELS = {
+    "SBC01":"가로형간판","SBC02":"세로형간판","SBC03":"돌출간판","SBC05":"옥상간판",
+    "SBC06":"지주이용간판","SBC11":"공공시설물이용","SBC13":"교통수단이용","SBC21":"현수막게시틀"
+  };
+
+  const $ = id => document.getElementById(id);
+
+  let curDong = '';
+  let curCompany = '';
+  let companiesReqId = 0;   // 동 기준 회사목록 요청 토큰
+  let signsReqId = 0;       // 회사 기준 간판목록 요청 토큰
+
+  let companiesAnno=[], companyFilter="all", companySearchText="";
+
+  async function fetchJSON(url, opts={}) {
+    const r = await fetch(url, opts);
+    if (!r.ok) throw new Error(`HTTP ${r.status} @ ${url}`);
+    return r.json();
+  }
+
+  // ==== 키보드 내비 ====
+function enableListKeyboard(listEl, onActivate) {
+  let idx = -1;
+  const items = () => Array.from(listEl.querySelectorAll('li[role="option"]'));
+  function setActive(i, activate) {
+    const arr = items(); if (!arr.length) return;
+    i = Math.max(0, Math.min(i, arr.length - 1));
+    arr.forEach((li, j) => {
+      li.tabIndex = (j === i) ? 0 : -1;
+      li.classList.toggle('selected', j === i);
+      li.setAttribute('aria-selected', j === i ? 'true' : 'false');
+    });
+    idx = i;
+    const li = arr[i];
+    li.focus(); li.scrollIntoView({ block: 'nearest' });
+    if (activate && typeof onActivate === 'function') {
+      onActivate(li);              // ✅ click() 대신 직접 한 번만!
+    }
+  }
+  listEl.addEventListener('keydown', (e) => {
+    const arr = items(); if (!arr.length) return; if (idx < 0) idx = 0;
+    switch (e.key) {
+      case 'ArrowUp':   e.preventDefault(); setActive(idx - 1, true); break;
+      case 'ArrowDown': e.preventDefault(); setActive(idx + 1, true); break;
+      case 'Home':      e.preventDefault(); setActive(0, true); break;
+      case 'End':       e.preventDefault(); setActive(arr.length - 1, true); break;
+      case 'Enter':
+      case ' ':         e.preventDefault(); setActive(idx, true); break;
+    }
+  });
+  // 마우스로 클릭 시에도 onActivate 1회 호출
+  listEl.addEventListener('click', (e) => {
+    const li = e.target.closest('li[role="option"]'); if (!li) return;
+    onActivate?.(li);
+  });
+}
+
+  // ==== 동 ====
+async function loadDongs() {
+  const d = await fetchJSON('/api/illegal/dongs');
+  const ul = document.getElementById('dongList'); ul.innerHTML = '';
+  (d.dongs || []).forEach(name => {
+    const li = document.createElement('li');
+    li.setAttribute('role', 'option');
+    li.textContent = name;
+    ul.appendChild(li);
+  });
+
+  enableListKeyboard(ul, (li) => {
+    const name = li.textContent.trim();
+    if (curDong === name) return;        // ✅ 같은 동이면 스킵
+    curDong = name;
+    curCompany = '';                     // ✅ 회사 선택 초기화
+    document.getElementById('companyList').querySelector('ul')?.replaceChildren?.();
+    document.getElementById('signGrid').innerHTML = ''; // ✅ 그리드 초기화
+    loadCompanies(curDong);
+  });
+
+  // 첫 항목 활성화(Enter 효과와 동일)
+  if (ul.firstChild) {
+    ul.setAttribute('tabindex', '0');
+    ul.focus();
+    // 최초 1회만 onActivate 실행
+    const first = ul.querySelector('li[role="option"]');
+    if (first) {
+      curDong = ''; // 강제로 다른 값으로 만들어 바로 로드되게
+      first.classList.add('selected'); first.setAttribute('aria-selected','true');
+      ul.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    }
+  }
+}
+
+  // ==== 회사 ====
+  async function annotateReviewed(list){
+    const checks = await Promise.all(
+      list.map(c => fetchJSON("/api/review/by_company/"+encodeURIComponent(c.i_cpn))
+        .then(r => ({ i_cpn:c.i_cpn, reviewed:(r.items||[]).length>0 }))
+        .catch(_ => ({ i_cpn:c.i_cpn, reviewed:false }))
+      )
+    );
+    const map=new Map(checks.map(x=>[x.i_cpn,x.reviewed]));
+    return list.map(c=>({...c, reviewed: !!map.get(c.i_cpn)}));
+  }
+  function renderCompanies(list, dong){
+    const ul=$("companyList"); ul.innerHTML="";
+    $("companyHint").textContent = list.length ? `${dong}: ${list.length}개 회사` : "표시할 회사가 없습니다.";
+    list.forEach(c=>{
+      const li=document.createElement("li"); li.setAttribute("role","option");
+      const badge = c.reviewed ? " · 검수필":" · 검수 필요";
+      li.textContent = `${c.company_name} (간판 ${c.sign_count})${badge}`;
+      li.onclick=()=>{ curCompany=c.i_cpn; loadSignsAll(curCompany, c.company_name); loadCompanyHistory(curCompany); };
+      ul.appendChild(li);
+    });
+    enableListKeyboard(ul); if(ul.firstChild) ul.firstChild.click(); ul.focus();
+  }
+  document.getElementById("btnSearch").onclick=()=>{ companySearchText=document.getElementById("companySearch").value; if(curDong) loadCompanies(curDong); };
+  ["fltAll","fltDone","fltNeed"].forEach(id=>{
+    $(id).onclick=(e)=>{
+      document.querySelectorAll(".toolbar .btn").forEach(b=>b.classList.remove("active"));
+      e.currentTarget.classList.add("active");
+      companyFilter=e.currentTarget.dataset.filter;
+      if(curDong) loadCompanies(curDong);
+    };
+  });
+
+  async function loadCompanies(dong) {
+  const myReq = ++companiesReqId;           // ✅ 토큰
+  const listBox = document.getElementById('companyList');
+  const ul = listBox.querySelector('ul') || document.getElementById('companyUl');
+  ul.innerHTML = '';
+  document.getElementById('companyHint').textContent = '로딩…';
+
+  let data;
+  try { data = await fetchJSON('/api/illegal/companies?dong=' + encodeURIComponent(dong)); }
+  catch (e) { document.getElementById('companyHint').textContent = '오류'; return; }
+
+  if (myReq !== companiesReqId) return;     // ✅ 이전 응답 무시
+
+  const companies = data.companies || [];
+  companies.forEach(c => {
+    const li = document.createElement('li');
+    li.setAttribute('role', 'option');
+    li.dataset.iCpn = c.i_cpn;
+    li.dataset.name = c.company_name || '';
+    li.textContent = `${c.company_name} (간판 ${c.sign_count})`;
+    ul.appendChild(li);
+  });
+
+  document.getElementById('companyHint').textContent = `${dong}: ${companies.length}개 회사`;
+
+  enableListKeyboard(ul, (li) => {
+    const iCpn  = li.dataset.iCpn;
+    const cname = li.dataset.name || li.textContent;
+    if (!iCpn || curCompany === iCpn) return;     // ✅ 같은 회사면 스킵
+    curCompany = iCpn;
+    loadSignsAll(iCpn, cname);
+    loadCompanyHistory?.(iCpn);
+  });
+
+  // 첫 회사 선택 한 번만 실행
+  const first = ul.querySelector('li[role="option"]');
+  if (first) {
+    curCompany = ''; // 강제 변경 유도
+    first.classList.add('selected'); first.setAttribute('aria-selected','true');
+    ul.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+  }
+}
+
+  async function loadCompanyHistory(i_cpn){
+    const h=await fetchJSON("/api/review/by_company/"+encodeURIComponent(i_cpn));
+    const tb=document.getElementById("companyHistBody"); tb.innerHTML="";
+    (h.items||[]).forEach(x=>{
+      const tr=document.createElement("tr");
+      const when=(x.created_at||"").replace("T"," ").slice(0,19);
+      tr.innerHTML=`<td>${when}</td><td>${x.reviewer||""}</td><td>${x.comment||""}</td>`;
+      tb.appendChild(tr);
+    });
+  }
+
+  // ==== 간판(회사 전체) ====
+  async function loadSignsAll(i_cpn, cname){
+    const grid=$("signGrid"); grid.innerHTML="";
+    let d; try{ d=await fetchJSON("/api/company/signs_all?i_cpn="+encodeURIComponent(i_cpn)); }
+    catch{ d=await fetchJSON("/api/illegal/signs?i_cpn="+encodeURIComponent(i_cpn)); }
+    (d.signs||[]).forEach(s=>{
+      const card=document.createElement("div"); card.className="card";
+
+      // 이미지
+      const img=new Image(); img.src=s.thumb||(`/api/image_blob/${s.i_info}`); img.alt=s.i_info;
+      img.onerror=()=>{ img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='320' height='200'><rect width='100%' height='100%' fill='#f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='#9ca3af' font-family='sans-serif' font-size='14'>이미지 없음</text></svg>"); };
+      card.appendChild(img);
+
+      // 정보 + 드롭다운
+      const kv=document.createElement("div"); kv.className="kv";
+      kv.innerHTML=`
+        <div class="row"><div>회사명</div><div>${cname||""}</div></div>
+        <div class="row"><div>간판ID</div><div>${s.i_info||""}</div></div>
+        <div class="row"><div>크기(px)</div><div>${s.q_img_w??""} × ${s.q_img_h??""}</div></div>
+        <div class="row"><div>q_l / q_s / q_w</div><div>${s.q_l??""} / ${s.q_s??""} / ${s.q_w??""}</div></div>
+      `;
+
+      // SBF
+      const rowSBF=document.createElement("div"); rowSBF.className="row";
+      const lSBF=document.createElement("div"); lSBF.textContent="전수조사결과(SBF)";
+      const rSBF=document.createElement("div"); rSBF.className="inline";
+      const selSBF=document.createElement("select");
+      Object.entries(SBF_LABELS).forEach(([k,v])=>{const o=document.createElement("option");o.value=k;o.textContent=`${k} · ${v}`; selSBF.appendChild(o);});
+      selSBF.value = s.i_sc_sbf || s.sc_sbf || "SBF01";
+      rSBF.appendChild(selSBF); rowSBF.appendChild(lSBF); rowSBF.appendChild(rSBF);
+
+      // SBD
+      const rowSBD=document.createElement("div"); rowSBD.className="row";
+      const lSBD=document.createElement("div"); lSBD.textContent="조명종류1(SBD)";
+      const rSBD=document.createElement("div"); rSBD.className="inline";
+      const selSBD=document.createElement("select");
+      Object.entries(SBD_LABELS).forEach(([k,v])=>{const o=document.createElement("option");o.value=k;o.textContent=`${k} · ${v}`; selSBD.appendChild(o);});
+      selSBD.value = s.i_sc_sbd || s.sc_sbd || "";
+      rSBD.appendChild(selSBD); rowSBD.appendChild(lSBD); rowSBD.appendChild(rSBD);
+
+      // SBC
+      const rowSBC=document.createElement("div"); rowSBC.className="row";
+      const lSBC=document.createElement("div"); lSBC.textContent="광고물종류(SBC)";
+      const rSBC=document.createElement("div"); rSBC.className="inline";
+      const selSBC=document.createElement("select");
+      Object.entries(SBC_LABELS).forEach(([k,v])=>{const o=document.createElement("option");o.value=k;o.textContent=`${k} · ${v}`; selSBC.appendChild(o);});
+      selSBC.value = s.i_sc_sbc || s.sc_sbc || "";
+      rSBC.appendChild(selSBC); rowSBC.appendChild(lSBC); rowSBC.appendChild(rSBC);
+
+      // 통합 업데이트 버튼
+      const rowUP=document.createElement("div"); rowUP.className="row";
+      const d0=document.createElement("div"); d0.textContent="";
+      const d1=document.createElement("div"); d1.className="inline";
+      const btn=document.createElement("button"); btn.textContent="업데이트";
+      btn.onclick=()=>updateSignAll(s.i_info, selSBF.value, selSBD.value, selSBC.value);
+      d1.appendChild(btn); rowUP.appendChild(d0); rowUP.appendChild(d1);
+
+      kv.appendChild(rowSBF); kv.appendChild(rowSBD); kv.appendChild(rowSBC); kv.appendChild(rowUP);
+      card.appendChild(kv);
+
+      // 액션
+      const actions=document.createElement("div"); actions.className="card-actions";
+      const btnRep=document.createElement("button"); btnRep.textContent="이미지 입력/교체"; btnRep.onclick=()=>openReplaceDialog(s.i_info);
+      const btnReq=document.createElement("button"); btnReq.textContent="재촬영 요청"; btnReq.onclick=()=>requestRecapture(i_cpn, s.i_info);
+      const btnDel=document.createElement("button"); btnDel.textContent="중복 이미지 삭제(행)"; btnDel.onclick=()=>deleteSignRow(s.i_info);
+      actions.appendChild(btnRep); actions.appendChild(btnReq); actions.appendChild(btnDel);
+      card.appendChild(actions);
+
+      document.getElementById("signGrid").appendChild(card);
+    });
+
+    // 하단 카드: 네이버 로드뷰(도로명) / 더미 생성
+    const toAddr=document.createElement("div");
+    toAddr.className="goaddr-card";
+    toAddr.innerHTML="<div>네이버 로드뷰(도로명)</div>";
+    toAddr.onclick=openCompanyRoadview;   // 도로명 기반 로드뷰
+    document.getElementById("signGrid").appendChild(toAddr);
+
+    const plus=document.createElement("div");
+    plus.className="plus-card"; plus.textContent="+";
+    plus.title="더미 간판 생성 (q_img_h=0, q_img_w=0)";
+    plus.onclick=()=>createDummySign(i_cpn);
+    document.getElementById("signGrid").appendChild(plus);
+  }
+
+  // ===== 저장(통합) =====
+  async function updateSignAll(i_info, sbf, sbd, sbc){
+    try{
+      // 1) SBF
+      const r1=await fetch("/api/sign_update_sbf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({i_info:String(i_info), i_sc_sbf:String(sbf)})}).then(r=>r.json());
+      if(!r1.ok){ alert("SBF 저장 실패: "+(r1.msg||"")); return; }
+      // 2) SBD/SBC
+      const fields={}; if(sbd) fields.sc_sbd=String(sbd); if(sbc) fields.sc_sbc=String(sbc);
+      if(Object.keys(fields).length){
+        const r2=await fetch("/api/sign_update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({i_info:String(i_info), fields})}).then(r=>r.json());
+        if(!r2.ok){ alert("SBD/SBC 저장 실패: "+(r2.msg||"")); return; }
+      }
+      alert("업데이트 완료");
+    }catch(e){ console.error(e); alert("업데이트 오류: "+e.message); }
+  }
+
+  // ===== 회사 히스토리 =====
+  async function loadCompanyHistory(i_cpn){
+    const h=await fetchJSON("/api/review/by_company/"+encodeURIComponent(i_cpn));
+    const tb=document.getElementById("companyHistBody"); tb.innerHTML="";
+    (h.items||[]).forEach(x=>{
+      const tr=document.createElement("tr");
+      const when=(x.created_at||"").replace("T"," ").slice(0,19);
+      tr.innerHTML=`<td>${when}</td><td>${x.reviewer||""}</td><td>${x.comment||""}</td>`;
+      tb.appendChild(tr);
+    });
+  }
+
+  // ===== 네이버 로드뷰(도로명) =====
+  async function openCompanyRoadview(){
+    if(!curCompany){ alert("회사부터 선택하세요."); return; }
+    // 사용자 제스처 시점에 탭을 먼저 열어 팝업차단 회피/재사용
+    const navWin = window.open("about:blank", "naver_map_tab");
+    try{
+      // 서버가 t_add_road(도로명) 우선으로 좌표 → roadview URL 생성
+      const d = await fetch("/api/company/roadview_url?i_cpn="+encodeURIComponent(curCompany)).then(r=>r.json());
+      if(!d.ok || !d.url){ try{navWin.close();}catch(_){}
+        alert(d.msg || "로드뷰 URL 생성 실패"); return; }
+      navWin.location.replace(d.url);
+    }catch(e){
+      try{navWin.close();}catch(_){}
+      console.error(e); alert("네이버 로드뷰 열기 실패");
+    }
+  }
+
+  // ===== 재촬영/삭제/이미지 교체/더미 생성 =====
+  async function requestRecapture(i_cpn, i_info=null, defaultReason="재촬영 요청"){
+    const reason = prompt("재촬영 요청 사유:", defaultReason) || defaultReason;
+    const payload = { i_cpn:String(i_cpn), reason }; if(i_info) payload.i_info=String(i_info);
+    const r=await fetch("/api/recapture/request",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).then(r=>r.json());
+    if(r.ok){ alert("재촬영 요청 등록"); if(curCompany) loadCompanyHistory(curCompany); }
+    else alert("실패: "+(r.msg||""));
+  }
+  async function deleteSignRow(i_info){
+    if(!confirm(`i_info=${i_info} 의 간판 행을 삭제할까요? (이미지는 유지)`)) return;
+    const r=await fetch("/api/sign/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({i_info:String(i_info)})}).then(r=>r.json());
+    if(r.ok){ alert("삭제됨"); if(curCompany) loadSignsAll(curCompany); } else alert("삭제 실패: "+(r.msg||""));
+  }
+  let replaceTarget=null;
+  function openReplaceDialog(i_info){
+    replaceTarget=String(i_info); document.getElementById("fileReplace").click();
+  }
+  document.getElementById("fileReplace").addEventListener("change", async (e)=>{
+    const file=e.target.files[0]; e.target.value=""; if(!file||!replaceTarget) return;
+    const fd=new FormData(); fd.append("i_info", replaceTarget); fd.append("image", file);
+    const res=await fetch("/api/sign_image/replace",{method:"POST",body:fd}).then(r=>r.json());
+    if(res.ok){ alert(`이미지 저장 완료 (원본 ${res.orig_w}×${res.orig_h})`); if(curCompany) loadSignsAll(curCompany); }
+    else alert("저장 실패: "+(res.msg||""));
+    replaceTarget=null;
+  });
+  async function createDummySign(i_cpn){
+    if(!confirm(`회사 i_cpn=${i_cpn} 에 더미 간판을 생성할까요? (q_img_h=0, q_img_w=0)`)) return;
+    const r=await fetch("/api/sign/create_dummy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({i_cpn:String(i_cpn)})}).then(r=>r.json());
+    if(r.ok){ alert("더미 생성 완료"); await requestRecapture(i_cpn, r.i_info||null, "신규 촬영(더미 생성)"); if(curCompany) loadSignsAll(curCompany); }
+    else alert("생성 실패: "+(r.msg||""));
+  }
+
+  // 초기 로드
+  loadDongs().catch(e=>{ console.error(e); alert("초기화 오류: "+e.message); });
+});
+</script>
+</body>
+</html>

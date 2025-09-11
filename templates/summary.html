@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>검수 결과 요약</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 24px; }
+    .toolbar { display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
+    .toolbar .field { display:flex; flex-direction:column; gap:6px; }
+    .toolbar input, .toolbar select { padding:8px; }
+    .actions { margin-top:12px; display:flex; gap:8px; }
+    table { width:100%; border-collapse:collapse; margin-top:16px; }
+    th, td { border-bottom:1px solid #eee; padding:8px 10px; text-align:left; font-size:14px; }
+    th { background:#fafafa; }
+    .muted { color:#666; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h2>검수 결과 요약</h2>
+
+  <div class="toolbar">
+    <div class="field">
+      <label>동</label>
+      <select id="f_dong">
+        <option value="">(전체)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>시작일</label>
+      <input id="f_from" type="date" />
+    </div>
+    <div class="field">
+      <label>종료일</label>
+      <input id="f_to" type="date" />
+    </div>
+    <div class="field">
+      <label>작업종류</label>
+      <select id="f_kind">
+        <option value="all">전체</option>
+        <option value="inspect">간판 검수</option>
+        <option value="company">회사 검수</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button id="btnLoad">조회</button>
+      <button id="btnExcel">엑셀 다운로드</button>
+    </div>
+  </div>
+
+  <div class="muted" id="metaInfo"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>동</th>
+        <th>세부주소</th>
+        <th>회사명</th>
+        <th>간판ID</th>
+        <th>작업종류</th>
+        <th>검수내용</th>
+        <th>작업자</th>
+        <th>일시</th>
+      </tr>
+    </thead>
+    <tbody id="tblBody"></tbody>
+  </table>
+
+<script>
+async function fetchJSON(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return r.json();
+}
+
+function encodeParams(p){
+  const usp = new URLSearchParams();
+  Object.entries(p).forEach(([k,v])=>{
+    if(v!==undefined && v!==null && String(v).trim()!==""){
+      usp.set(k, v);
+    }
+  });
+  return usp.toString();
+}
+
+async function loadDongs(){
+  const data = await fetchJSON("/api/dongs");
+  const sel = document.getElementById("f_dong");
+  (data.dongs||[]).forEach(d=>{
+    const opt=document.createElement("option");
+    opt.value=d; opt.textContent=d;
+    sel.appendChild(opt);
+  });
+}
+
+async function loadSummary(){
+  const dong = document.getElementById("f_dong").value;
+  const from = document.getElementById("f_from").value;
+  const to   = document.getElementById("f_to").value;
+  const kind = document.getElementById("f_kind").value;
+
+  const qs = encodeParams({dong, from, to, kind, limit: 2000});
+  const data = await fetchJSON("/api/review/summary?"+qs);
+  const tb = document.getElementById("tblBody");
+  tb.innerHTML = "";
+
+  let cnt = 0;
+  (data.rows||[]).forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.dong||""}</td>
+      <td>${r.addr||""}</td>
+      <td>${r.company_name||""}</td>
+      <td>${r.i_info||""}</td>
+      <td>${r.action||""}</td>
+      <td>${(r.comment||"").replace(/\n/g,"<br>")}</td>
+      <td>${r.reviewer||""}</td>
+      <td>${r.created_at||""}</td>
+    `;
+    tb.appendChild(tr);
+    cnt++;
+  });
+
+  document.getElementById("metaInfo").textContent = `총 ${cnt}건`;
+}
+
+function downloadExcel(){
+  const dong = document.getElementById("f_dong").value;
+  const from = document.getElementById("f_from").value;
+  const to   = document.getElementById("f_to").value;
+  const kind = document.getElementById("f_kind").value;
+
+  const qs = encodeParams({dong, from, to, kind, limit: 2000});
+  const url = "/api/review/summary_export?"+qs;
+  window.open(url, "_blank");
+}
+
+document.getElementById("btnLoad").onclick = ()=>{ loadSummary().catch(e=>alert("조회 오류: "+e.message)); };
+document.getElementById("btnExcel").onclick = ()=>{ downloadExcel(); };
+
+loadDongs().then(loadSummary).catch(e=>alert("초기화 오류: "+e.message));
+</script>
+</body>
+</html>

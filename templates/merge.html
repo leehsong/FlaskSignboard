@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>회사 주소 합치기</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 20px; }
+    .layout { display:grid; grid-template-columns: 260px 360px 1fr; gap:16px; }
+    .panel  { border:1px solid #ddd; border-radius:10px; padding:10px; min-height:520px; }
+
+    /* 리스트 공통 */
+    ul.list { list-style:none; padding:0; margin:0; }
+    ul.list li { padding:6px 8px; cursor:pointer; border-bottom:1px solid #f1f1f1; display:flex; align-items:center; gap:8px; }
+    ul.list li:hover, ul.list li:focus { background:#f5f8ff; outline:none; }
+    ul.list li.selected, ul.list li[aria-selected="true"] { background:#e8f1ff; }
+    .scroll { max-height: 720px; overflow:auto; border:1px solid #eee; border-radius:6px; }
+
+    /* 간판 카드 */
+    .sign-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap:12px; }
+    .card { border:1px solid #ddd; border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:8px; }
+    .card img { width:100%; height:auto; max-height: 360px; object-fit:contain; border:1px solid #eee; border-radius:6px; background:#fff; }
+    .kv   { font-size:13px; color:#333; line-height:1.3; }
+    .kv .row { display:grid; grid-template-columns: 120px 1fr; gap:6px; }
+    .muted { color:#666; font-size:12px; }
+
+    .mergeBox { margin-top:12px; padding-top:10px; border-top:1px dashed #ddd; }
+    .mergeRow { display:flex; gap:8px; align-items:center; margin-top:6px; }
+    .mergeRow input[type="text"] { flex:1; padding:8px; }
+    .help  { color:#666; font-size:12px; margin-top:6px; }
+    .danger{ color:#b91c1c; }
+  </style>
+</head>
+<body>
+  <h2>회사 주소 합치기</h2>
+
+  <div class="layout">
+    <!-- 좌: 동/번지 -->
+    <div class="panel">
+      <div><b>동 선택</b></div>
+      <select id="dong" style="width:100%; padding:8px; margin-top:6px;"></select>
+
+      <div style="margin-top:12px;"><b>번지</b></div>
+      <div class="scroll" style="margin-top:6px;">
+        <ul id="bunjiList" class="list" role="listbox" tabindex="0" aria-label="번지 목록"></ul>
+      </div>
+    </div>
+
+    <!-- 중: 회사 목록 + 병합 UI 복원 -->
+    <div class="panel">
+      <div><b>회사 목록</b></div>
+      <div id="companyList" class="scroll" style="margin-top:6px;">
+        <ul id="companyUl" class="list" role="listbox" tabindex="0" aria-label="회사 목록"></ul>
+      </div>
+      <div id="infoHint" class="muted" style="margin-top:8px;"></div>
+
+      <!-- ✅ 병합 UI 복원 -->
+      <div class="mergeBox">
+        <div><b>선택 회사명 병합</b></div>
+        <div class="mergeRow">
+          <input id="canonicalName" type="text" placeholder="대표 회사명(예: ○○상사)" />
+          <button id="btnMerge">병합 실행</button>
+        </div>
+        <div class="help">
+          체크박스로 2개 이상 회사를 선택한 뒤, 대표 회사명을 입력하고 병합하세요.<br>
+          <span class="danger">병합 시 간판 FK(i_cpn)도 대표 회사ID로 통일</span>됩니다.
+        </div>
+      </div>
+    </div>
+
+    <!-- 우: 간판 목록 -->
+    <div class="panel">
+      <div id="signTitle"><b>간판 목록</b></div>
+      <div id="signGrid" class="sign-grid" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <!-- 회사 편집 모달 (도로명 주소 필드 추가) -->
+  <div id="companyModal" style="position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:1000;">
+    <div style="width:min(720px,92vw); max-height:92vh; overflow:auto; background:#fff; border-radius:12px; padding:16px; box-shadow:0 10px 40px rgba(0,0,0,.3);">
+      <h3 id="companyModalTitle">회사 정보</h3>
+      <div style="display:grid; grid-template-columns: 140px 1fr; gap:8px 12px; font-size:14px;">
+        <label>회사ID</label>      <input id="m_i_cpn" type="text" readonly style="padding:8px;">
+        <label>회사명</label>      <input id="m_t_cpn" type="text" style="padding:8px;">
+        <label>동</label>          <input id="m_t_add_3" type="text" style="padding:8px;">
+        <label>번지</label>        <input id="m_t_add_num" type="text" style="padding:8px;">
+        <label>상세</label>        <input id="m_t_add_2" type="text" style="padding:8px;">
+        <label>도로명 주소</label> <input id="m_t_road" type="text" style="padding:8px;" placeholder="옵션: DB에 없으면 서버가 무시">
+        <label>연락처</label>      <input id="m_t_tel" type="text" style="padding:8px;" placeholder="옵션: DB에 없으면 서버가 무시">
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button id="btnCompDelete" style="background:#fee2e2; border:1px solid #fca5a5; padding:8px 12px;">삭제</button>
+        <button id="btnCompSave"   style="padding:8px 12px;">저장</button>
+        <button id="btnCompClose"  style="padding:8px 12px;">닫기</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const $ = id => document.getElementById(id);
+  let curDong="", curBunji="", curCompanyId="", curCompanyName="";
+
+  async function fetchJSON(url, opts={}) {
+    const r = await fetch(url, opts);
+    if (!r.ok) throw new Error(`HTTP ${r.status} @ ${url}`);
+    return r.json();
+  }
+
+  /* 공용: 리스트 키보드 내비 */
+  function enableListKeyboard(listEl){
+    let idx=-1;
+    const items = () => Array.from(listEl.querySelectorAll('li[role="option"]'));
+    function setActive(i, activate){
+      const arr = items(); if(!arr.length) return;
+      i = Math.max(0, Math.min(i, arr.length-1));
+      arr.forEach((li,j)=>{
+        li.tabIndex = (j===i)?0:-1;
+        li.classList.toggle("selected", j===i);
+        li.setAttribute("aria-selected", j===i ? "true" : "false");
+      });
+      idx=i; arr[i].focus(); arr[i].scrollIntoView({block:"nearest"});
+      if (activate) arr[i].click();
+    }
+    listEl.addEventListener("keydown", (e)=>{
+      const arr = items(); if(!arr.length) return; if(idx<0) idx=0;
+      switch(e.key){
+        case "ArrowUp":   e.preventDefault(); setActive(idx-1,true); break;
+        case "ArrowDown": e.preventDefault(); setActive(idx+1,true); break;
+        case "Home":      e.preventDefault(); setActive(0,true); break;
+        case "End":       e.preventDefault(); setActive(arr.length-1,true); break;
+        case "Enter":
+        case " ":         e.preventDefault(); setActive(idx,true); break;
+      }
+    });
+    listEl.addEventListener("click", (e)=>{
+      const li = e.target.closest('li[role="option"]'); if(!li) return;
+      const arr = items(); const i = arr.indexOf(li);
+      if(i>=0) setActive(i, false);
+    });
+  }
+
+  /* 1) 동 로딩 */
+  async function loadDongs(){
+    const data = await fetchJSON("/api/dongs");
+    const sel = $("dong"); sel.innerHTML = "";
+    (data.dongs||[]).forEach(d=>{
+      const opt=document.createElement("option");
+      opt.value=d; opt.textContent=d;
+      sel.appendChild(opt);
+    });
+    sel.onchange = () => { curDong=sel.value; loadBunji(curDong); };
+    if(data.dongs?.length){ curDong=data.dongs[0]; sel.value=curDong; loadBunji(curDong); }
+  }
+
+  /* 2) 번지 로딩 */
+  async function loadBunji(dong){
+    const data = await fetchJSON("/api/bunji?dong="+encodeURIComponent(dong));
+    const ul=$("bunjiList"); ul.innerHTML="";
+    (data.bunji||[]).forEach(b=>{
+      const li=document.createElement("li");
+      li.textContent=b; li.setAttribute("role","option"); li.tabIndex=-1;
+      li.onclick=()=>{ [...ul.children].forEach(x=>x.classList.remove("selected")); li.classList.add("selected"); curBunji=b; loadCompanies(dong,b); };
+      ul.appendChild(li);
+    });
+    enableListKeyboard(ul); if(ul.firstChild) ul.firstChild.click(); ul.focus();
+  }
+
+  /* 3) 회사 목록 (체크박스 + 클릭/더블클릭) */
+  async function loadCompanies(dong,bunji){
+    const data=await fetchJSON(`/api/companies?dong=${encodeURIComponent(dong)}&bunji=${encodeURIComponent(bunji)}`);
+    const ul=$("companyUl"); ul.innerHTML="";
+    $("infoHint").textContent=data.companies?.length?`${dong} ${bunji} · ${data.companies.length}개 회사`:"";
+
+    (data.companies||[]).forEach(c=>{
+      const li=document.createElement("li");
+      li.setAttribute("role","option");
+      // ✅ 체크박스 + 레이블
+      const cb = document.createElement("input"); cb.type="checkbox"; cb.value=c.cidx; cb.dataset.name=c.company_name;
+      const label = document.createElement("span"); label.textContent=`${c.company_name} (i_cpn=${c.cidx})`;
+      li.appendChild(cb); li.appendChild(label);
+
+      li.onclick= (ev)=>{ // 라인 클릭 시 선택/해제 + 우측 간판 표시
+        if(ev.target.tagName!=="INPUT"){ cb.checked=!cb.checked; }
+        // 클릭하면 해당 회사 간판 표시
+        curCompanyId=c.cidx; curCompanyName=c.company_name;
+        loadSignsAll(curCompanyId,curCompanyName);
+      };
+      li.ondblclick=()=>openCompanyEditor(c.cidx,c.company_name);
+
+      ul.appendChild(li);
+    });
+
+    enableListKeyboard(ul); if(ul.firstChild) ul.firstChild.click();
+  }
+
+  /* 4) 간판 목록 (회사 전체) */
+  async function loadSignsAll(i_cpn, companyName){
+    const grid=$("signGrid"); grid.innerHTML="";
+    $("signTitle").innerHTML=`<b>간판 목록</b> <span class="muted">— ${companyName} (i_cpn=${i_cpn})</span>`;
+
+    let signs=[];
+    try{
+      const data=await fetchJSON("/api/company/signs_all?i_cpn="+encodeURIComponent(i_cpn));
+      signs=data.signs||[];
+    }catch(_){
+      try{
+        const data2=await fetchJSON("/api/illegal/signs?i_cpn="+encodeURIComponent(i_cpn));
+        signs=data2.signs||[];
+      }catch(e2){ console.error(e2); alert("간판 목록을 불러오지 못했습니다."); return; }
+    }
+
+    signs.forEach(s=>{
+      const card=document.createElement("div"); card.className="card";
+      const img=new Image(); img.src=s.thumb || `/api/image_blob/${s.i_info}`;
+      img.alt=s.i_info; img.title="이미지";
+      img.onerror=()=>{ img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='320' height='240'><rect width='100%' height='100%' fill='#f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='#9ca3af' font-family='sans-serif' font-size='14'>이미지 없음</text></svg>"); };
+
+      const kv=document.createElement("div"); kv.className="kv";
+      kv.innerHTML=`
+        <div class="row"><div>회사명</div><div>${companyName}</div></div>
+        <div class="row"><div>i_info</div><div>${s.i_info}</div></div>
+        <div class="row"><div>크기(px)</div><div>${(s.q_img_w??"")||""} × ${(s.q_img_h??"")||""}</div></div>
+        <div class="row"><div>q_l / q_s / q_w</div><div>${s.q_l??""} / ${s.q_s??""} / ${s.q_w??""}</div></div>`;
+      card.appendChild(img); card.appendChild(kv); grid.appendChild(card);
+    });
+  }
+
+  /* ===== 병합 실행 ===== */
+  document.getElementById("btnMerge").onclick = async ()=>{
+    if(!curDong || !curBunji){ alert("동/번지를 먼저 선택하세요."); return; }
+    const canonical = document.getElementById("canonicalName").value.trim();
+    if(!canonical){ alert("대표 회사명을 입력하세요."); return; }
+
+    // ✅ 회사ID(i_cpn) 목록으로 수집
+    const checked = Array.from(document.querySelectorAll('#companyUl input[type="checkbox"]:checked'));
+    const selectedIds = Array.from(new Set(checked.map(x => x.value))).filter(Boolean);
+
+    if(selectedIds.length < 2){
+      alert("두 개 이상 회사를 선택하세요."); return;
+    }
+
+    try{
+      const res = await fetch("/api/merge_companies", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          selected_ids: selectedIds,           // ✅ ID 기반
+          canonical_name: canonical
+        })
+      }).then(r=>r.json());
+
+      if(res.ok){
+        alert(`병합 완료 (대표 i_cpn=${res.canonical_id})`);
+        document.getElementById("canonicalName").value="";
+        await loadCompanies(curDong, curBunji);      // 회사 목록 리로드
+        if(curCompanyId){ loadSignsAll(curCompanyId, curCompanyName); } // 우측 간판도 적절히 갱신
+      }else{
+        alert("병합 실패: "+(res.msg||""));
+      }
+    }catch(e){
+      console.error(e);
+      alert("병합 요청 오류: " + e.message);
+    }
+  };
+
+
+  /* ===== 회사 편집 모달 ===== */
+  async function openCompanyEditor(i_cpn, name){
+    let d=null;
+    try{
+      d=await fetchJSON("/api/company/detail?i_cpn="+encodeURIComponent(i_cpn));
+      if(!d.ok) throw new Error(d.msg);
+    }catch(_){ alert("회사 조회 실패"); return; }
+
+    $("companyModalTitle").textContent=`회사 정보 — ${name} (i_cpn=${i_cpn})`;
+    $("m_i_cpn").value=i_cpn;
+    $("m_t_cpn").value=d.company_name||"";
+    $("m_t_add_3").value=d.dong||"";
+    $("m_t_add_num").value=d.bunji||"";
+    $("m_t_add_2").value=d.bunji2||"";
+    $("m_t_road").value=d.t_road||"";   // ✅ 도로명 주소
+    $("m_t_tel").value=d.t_tel||"";
+    document.getElementById("companyModal").style.display="flex";
+  }
+  document.getElementById("btnCompClose").onclick=()=>{ document.getElementById("companyModal").style.display="none"; };
+  document.getElementById("btnCompSave").onclick=async()=>{
+    const i_cpn=$("m_i_cpn").value.trim();
+    const fields={
+      t_cpn:$("m_t_cpn").value, t_add_3:$("m_t_add_3").value,
+      t_add_num:$("m_t_add_num").value, t_add_2:$("m_t_add_2").value,
+      t_road:$("m_t_road").value, t_tel:$("m_t_tel").value
+    };
+    const r=await fetch("/api/company/update",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({i_cpn,fields})
+    }).then(r=>r.json());
+    if(r.ok){ alert("저장되었습니다."); document.getElementById("companyModal").style.display="none"; if(curDong&&curBunji) loadCompanies(curDong,curBunji); }
+    else alert("저장 실패: "+(r.msg||""));
+  };
+  document.getElementById("btnCompDelete").onclick=async()=>{
+    const i_cpn=$("m_i_cpn").value.trim();
+    if(!confirm(`회사 ${i_cpn} 삭제? 연결 간판이 있으면 삭제 불가입니다.`)) return;
+    const r=await fetch("/api/company/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({i_cpn})}).then(r=>r.json());
+    if(r.ok){ alert("삭제되었습니다."); document.getElementById("companyModal").style.display="none"; if(curDong&&curBunji) loadCompanies(curDong,curBunji); $("signGrid").innerHTML=""; $("signTitle").innerHTML="<b>간판 목록</b>"; }
+    else alert("삭제 실패: "+(r.msg||""));
+  };
+
+  // 시작
+  loadDongs();
+});
+</script>
+</body>
+</html>

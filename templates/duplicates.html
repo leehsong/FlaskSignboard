@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>중복 회사명 목록</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 24px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
+    th { background: #fafafa; }
+    .muted { color:#666; }
+  </style>
+</head>
+<body>
+  <h2>🔎 Company 중복 목록</h2>
+  <div class="muted">검수자: <b>{{ reviewer }}</b> · 총 레코드: {{ total }}</div>
+  {% if dups and dups|length > 0 %}
+  <table style="margin-top:12px;">
+    <thead>
+      <tr><th>company_name(정규화)</th><th>중복 수</th><th>ad_idx 리스트</th></tr>
+    </thead>
+    <tbody>
+      {% for d in dups %}
+      <tr>
+        <td>{{ d.company_name }}</td>
+        <td>{{ d.count }}</td>
+        <td>{{ d.ad_idx_list | join(', ') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p style="margin-top:12px;">중복된 회사명이 없습니다.</p>
+  {% endif %}
+</body>
+</html>

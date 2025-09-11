@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>Image Reviewer - 검수</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 20px; }
+    .wrap { display: grid; grid-template-columns: 1fr 360px; gap: 16px; }
+    .pic { border: 1px solid #888; min-height: 480px; display: flex; align-items: center; justify-content: center; }
+    .pic img { max-width: 100%; max-height: 80vh; }
+    .meta { background: #f9f9f9; padding: 12px; border-radius: 8px; }
+    .row { margin-top: 10px; }
+    .btns button { height: 36px; margin-right: 6px; }
+    .log { background: #fafafa; border: 1px solid #eee; padding: 8px; height: 100px; overflow: auto; white-space: pre-wrap; }
+    .bar { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <h2 id="title" style="margin:0;">로딩 중…</h2>
+    <div style="color:#666;">검수자: <b>{{ reviewer }}</b></div>
+    <a href="{{ url_for('duplicates_page') }}" target="_blank">🔎 company 중복 확인</a>
+  </div>
+
+  <div class="wrap">
+    <div class="pic">
+      <img id="photo" alt="이미지" />
+    </div>
+    <div>
+      <div class="meta" id="meta">메타 로딩…</div>
+
+      <div class="row btns" style="margin-top:12px;">
+        <button onclick="nav(-1)">◀ 이전</button>
+        <button onclick="nav(+1)">다음 ▶</button>
+      </div>
+
+      <div class="row btns">
+        <button onclick="save('Y')">✅ 정상(Y)</button>
+        <button onclick="save('N')">❌ 불량(N)</button>
+        <button onclick="save('U')">🕗 유보(U)</button>
+        <button onclick="openFolder()">📂 폴더(로컬 불가)</button>
+        <button onclick="openMap()">🗺️ 지도</button>
+      </div>
+
+      <div class="row">
+        <textarea id="memo" placeholder="검수 의견…" rows="4" style="width:100%;"></textarea>
+      </div>
+
+      <div class="row log" id="log"></div>
+    </div>
+  </div>
+
+<script>
+let curIndex = 0, total = 0, curId = '', curAddrFull = '';
+
+function log(msg){
+  const t = new Date().toLocaleTimeString();
+  const div = document.getElementById('log');
+  const lines = div.textContent.split('\n').slice(-20);
+  lines.push(`[${t}] ${msg}`);
+  div.textContent = lines.join('\n').trim();
+}
+
+async function init(){
+  const s = await fetch('/api/state').then(r=>r.json());
+  curIndex = s.index; total = s.total;
+  await loadAt(curIndex);
+}
+
+async function loadAt(index){
+  const meta = await fetch(`/api/meta/${index}`).then(r=>r.json());
+  if(meta.error){ alert(meta.error); return; }
+  curId = meta.id;
+  curAddrFull = meta.addr_full || '';
+  document.getElementById('meta').innerHTML = meta.meta_html;
+  document.getElementById('title').textContent = `${curId}  (${index+1}/${total})`;
+  document.getElementById('memo').value = '';
+  document.getElementById('photo').src = `/api/image_blob/${curId}`;
+  curIndex = index;
+  log(`로드: ${curId}`);
+}
+
+async function nav(step){
+  const res = await fetch('/api/nav', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({step})
+  }).then(r=>r.json());
+  await loadAt(res.index);
+}
+
+async function save(result){
+  const comment = document.getElementById('memo').value.trim();
+  const res = await fetch('/api/review', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ad_idx: curId, result, comment})
+  }).then(r=>r.json());
+  if(res.ok){ log(`저장: ${curId} → ${result}`); }
+  else { alert(res.msg || '저장 실패'); }
+}
+
+function openFolder(){
+  alert('웹 환경에서는 로컬 폴더 직접 열기가 불가합니다.');
+}
+
+async function openMap(){
+  const u = await fetch(`/api/map_url/${curIndex}`).then(r=>r.json());
+  if(u.url){ window.open(u.url, '_blank'); }
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# --- GUI ---
+PyQt5>=5.15.10          # Qt 기반 GUI 프레임워크
+
+# --- DB ---
+psycopg2-binary>=2.9.9  # PostgreSQL 드라이버(빌드 환경 없이 설치 가능)
+
+# --- 이미지 처리(선택) ---
+opencv-python>=4.10.0.82    # cv2 모듈 ─ 원본 업로드·리사이즈 기능에 필요
+mysql-connector-python  
+pandas>=2.2.2
+openpyxl>=3.1.2 
+requests>=2.31.0  
+beautifulsoup4
+Flask>=3.0
+python-dotenv>=1.0      # (선택) 환경변수로 KAKAO_KEY 관리 시

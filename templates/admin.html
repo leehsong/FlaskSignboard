@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>관리자 승인/반려</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 20px; }
+    .top { display:flex; align-items:center; gap:12px; }
+    .muted { color:#666; }
+    .wrap { display:grid; grid-template-columns: 820px 1fr; gap:16px; margin-top:12px; }
+    .imgbox { border:1px solid #ddd; min-height: 600px; display:flex; align-items:center; justify-content:center; }
+    .imgbox img { max-width: 800px; max-height: 600px; }
+    .panel { border:1px solid #ddd; border-radius: 8px; padding:12px; }
+    .list { max-height: 220px; overflow:auto; border:1px solid #eee; border-radius:6px; }
+    .row { margin-top:10px; }
+    textarea { width:100%; height:110px; padding:8px; }
+    button { padding:8px 12px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #f0f0f0; padding:6px 8px; text-align:left; }
+    th { background:#fafafa; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h2 style="margin:0;">🛂 관리자 승인/반려</h2>
+    <div class="muted">관리자: <b>{{ admin }}</b></div>
+    <a href="{{ url_for('home') }}" style="margin-left:auto;">← 홈</a>
+  </div>
+
+  <div class="wrap">
+    <!-- 좌: 이미지 -->
+    <div class="imgbox">
+      <img id="photo" alt="이미지" />
+    </div>
+
+    <!-- 우: 정보/액션 -->
+    <div class="panel">
+      <div class="row">
+        <b>대기 목록</b>
+        <div class="muted">페이지: <span id="pageInfo"></span></div>
+        <div class="list" id="pendingList"></div>
+        <div class="row">
+          <button onclick="prevPage()">이전</button>
+          <button onclick="nextPage()">다음</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:14px;">
+        <b>선택 항목</b>
+        <div id="meta" class="muted">목록에서 항목을 선택하세요.</div>
+      </div>
+
+      <div class="row">
+        <label>관리자 코멘트</label>
+        <textarea id="adminCmt" placeholder="반려 사유 등 메모"></textarea>
+      </div>
+
+      <div class="row" style="display:flex; gap:8px;">
+        <button onclick="decision('A')">✅ 승인(A)</button>
+        <button onclick="decision('R')">❌ 반려(R)</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+let page=1, per_page=20, total=0, items=[], current=null;
+
+async function loadPage(p=1){
+  const res = await fetch(`/admin/api/pending?page=${p}&per_page=${per_page}`).then(r=>r.json());
+  if(res.error){ alert(res.error); return; }
+  page = res.page; per_page = res.per_page; total = res.total; items = res.items || [];
+  document.getElementById('pageInfo').textContent = `${page} / ${Math.max(1, Math.ceil(total/per_page))} (총 ${total}건)`;
+  renderList();
+  if(items.length){ select(items[0]); } else { clearView(); }
+}
+
+function renderList(){
+  const el = document.getElementById('pendingList'); el.innerHTML='';
+  if(!items.length){ el.textContent = '대기 항목이 없습니다.'; return; }
+  const tbl = document.createElement('table');
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>i_img</th><th>검수자</th><th>결과</th><th>검수일</th></tr>';
+  tbl.appendChild(thead);
+  const tb = document.createElement('tbody');
+  for(const it of items){
+    const tr = document.createElement('tr');
+    tr.style.cursor='pointer';
+    tr.onclick = ()=>select(it);
+    tr.innerHTML = `<td>${it.i_img}</td><td>${it.c_reviewer||''}</td><td>${it.c_verify||''}</td><td>${(it.d_verify||'').replace('T',' ').slice(0,19)}</td>`;
+    tb.appendChild(tr);
+  }
+  tbl.appendChild(tb); el.appendChild(tbl);
+}
+
+function clearView(){
+  current = null;
+  document.getElementById('photo').src = '';
+  document.getElementById('meta').innerHTML = '목록에서 항목을 선택하세요.';
+  document.getElementById('adminCmt').value = '';
+}
+
+function select(it){
+  current = it;
+  document.getElementById('photo').src = `/api/image_by_iimg/${encodeURIComponent(it.i_img)}`;
+  document.getElementById('meta').innerHTML =
+    `<div><b>이미지:</b> ${it.i_img}</div>
+     <div><b>검수자:</b> ${it.c_reviewer||''}</div>
+     <div><b>결과:</b> ${it.c_verify||''}</div>
+     <div><b>코멘트:</b><br>${(it.t_comment||'').replaceAll('\n','<br>')}</div>`;
+  document.getElementById('adminCmt').value = '';
+}
+
+async function decision(dec){
+  if(!current){ alert('항목을 선택하세요.'); return; }
+  const comment = document.getElementById('adminCmt').value.trim();
+  const res = await fetch('/admin/api/decision', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ i_img: current.i_img, decision: dec, comment })
+  }).then(r=>r.json());
+  if(res.ok){
+    // 리스트에서 제거 후 화면 갱신
+    items = items.filter(x=>x.i_img !== current.i_img);
+    if(items.length){ select(items[0]); renderList(); }
+    else { // 현재 페이지가 비었으면 다음 페이지 로딩 시도
+      const maxPage = Math.max(1, Math.ceil((total-1)/per_page));
+      const nextP = Math.min(page, maxPage);
+      await loadPage(nextP);
+    }
+  }else{
+    alert('저장 실패: ' + (res.msg||''));
+  }
+}
+
+function prevPage(){ if(page>1) loadPage(page-1); }
+function nextPage(){ const maxPage = Math.max(1, Math.ceil(total/per_page)); if(page<maxPage) loadPage(page+1); }
+loadPage(1);
+</script>
+</body>
+</html>

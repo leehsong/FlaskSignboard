@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>메뉴 선택</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 40px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:16px; }
+    .card { padding: 20px; border:1px solid #ddd; border-radius:12px; }
+    .muted { color:#666; margin-bottom:16px; }
+    a.btn { display:inline-block; margin-top:8px; padding:10px 14px; border:1px solid #999; border-radius:8px; text-decoration:none; color:#111; }
+    a.btn:hover { background:#f4f4f4; }
+  </style>
+</head>
+<body>
+  <h1>🖼️ Image Reviewer (Web)</h1>
+  <div class="muted">검수자: <b>{{ reviewer }}</b> · <a href="{{ url_for('start') }}">검수자 변경</a></div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>1) 회사 점검 / 주소 합치기</h3>
+      <p>동 → 번지 → 회사 선택 후 주소 수정 및 회사명 병합을 수행합니다.</p>
+      <a class="btn" href="{{ url_for('merge_page') }}">바로가기</a>
+    </div>
+
+    <div class="card">
+      <h3>2) XLS 업로드 사진 Review</h3>
+      <p>엑셀을 업로드해 이미지 검수를 진행합니다.</p>
+      <a class="btn" href="{{ url_for('upload_index') }}">업로드 페이지</a>
+    </div>
+
+    <div class="card">
+      <h3>3) 불법/신고 간판 검수</h3>
+      <p>SBF04/SBF06 조건의 간판을 동→회사명→간판 순으로 검수하고, 코멘트/이력을 저장합니다.</p>
+      <a class="btn" href="{{ url_for('illegal_page') }}">바로가기</a>
+    </div>
+
+    <div class="card">
+        <h3>4) 관리자 승인/반려</h3>
+        <p>검수자가 올린 결과를 최종 승인(A) 또는 반려(R)합니다.</p>
+        <a class="btn" href="{{ url_for('admin_panel') }}">관리자 패널</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>검수자 이름 입력</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 40px; }
+    .card { max-width: 560px; padding: 24px; border: 1px solid #ddd; border-radius: 12px; }
+    .err { color: #c00; margin-top: 12px; }
+    input[type=text] { width: 100%; padding: 10px; font-size: 16px; }
+    button { margin-top: 14px; padding: 8px 14px; }
+  </style>
+</head>
+<body>
+  <h1>📝 검수자 설정</h1>
+  <div class="card">
+    <form method="post">
+      <label for="reviewer">검수자 이름</label>
+      <input id="reviewer" name="reviewer" type="text" placeholder="예: 홍길동" required />
+      <button type="submit">다음</button>
+    </form>
+    {% if error %}
+      <div class="err">{{ error }}</div>
+    {% endif %}
+  </div>
+</body>
+</html>

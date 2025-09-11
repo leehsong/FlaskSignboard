@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>관리자 로그인</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 40px; }
+    .card { max-width: 560px; padding: 24px; border:1px solid #ddd; border-radius: 12px; }
+    input[type=text]{ width:100%; padding:10px; font-size:16px; }
+    button{ margin-top:12px; padding:8px 14px; }
+    .err{ color:#c00; margin-top:10px; }
+  </style>
+</head>
+<body>
+  <h1>🛂 관리자 로그인</h1>
+  <div class="card">
+    <form method="post">
+      <label for="admin_id">관리자 ID</label>
+      <input id="admin_id" name="admin_id" type="text" placeholder="예: admin01" required />
+      <button type="submit">입장</button>
+    </form>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  </div>
+</body>
+</html>
