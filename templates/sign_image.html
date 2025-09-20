@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>간판 이미지 관리</title>
+<style>
+#dropzone { border:2px dashed #aaa; padding:20px; text-align:center; }
+#preview { margin-top:10px; }
+img.thumb { width:200px; height:150px; object-fit:cover; cursor:pointer; margin:5px; }
+.modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.8); }
+.modal img { display:block; max-width:90%; max-height:90%; margin:5% auto; }
+</style>
+</head>
+<body>
+<h2>간판 이미지 업로드/관리</h2>
+<input type="hidden" id="i_info" value="12345">
+<div id="dropzone">여기에 이미지를 Drag&Drop 하거나 Clipboard에서 붙여넣으세요</div>
+<div id="preview"></div>
+<hr>
+<button id="btnHistory">과거 이미지 보기</button>
+<button id="btnCandidates">후보 이미지 찾기</button>
+<div id="results"></div>
+
+<!-- 모달 -->
+<div id="imgModal" class="modal" onclick="this.style.display='none'">
+  <img id="modalImg" src="">
+</div>
+
+<script>
+const dropzone=document.getElementById("dropzone");
+const preview=document.getElementById("preview");
+const i_info=document.getElementById("i_info").value;
+
+// Drag&Drop
+dropzone.addEventListener("dragover",e=>{e.preventDefault();dropzone.style.background="#eef"});
+dropzone.addEventListener("dragleave",e=>{dropzone.style.background="";});
+dropzone.addEventListener("drop",e=>{
+  e.preventDefault();
+  const file=e.dataTransfer.files[0];
+  uploadFile(file);
+});
+
+// Clipboard
+document.addEventListener("paste",e=>{
+  const items=e.clipboardData.items;
+  for(let i=0;i<items.length;i++){
+    if(items[i].type.indexOf("image")===0){
+      const file=items[i].getAsFile();
+      uploadFile(file);
+    }
+  }
+});
+
+function uploadFile(file){
+  const formData=new FormData();
+  formData.append("i_info",i_info);
+  formData.append("file",file);
+  fetch("/api/sign/upload_image",{method:"POST",body:formData})
+    .then(r=>r.json()).then(d=>{
+      if(d.ok){
+        const img=document.createElement("img");
+        img.src=URL.createObjectURL(file);
+        img.className="thumb";
+        preview.appendChild(img);
+      }else alert(d.msg);
+    });
+}
+
+function renderThumbnails(list,title){
+  let html=`<h3>${title}</h3>`;
+  list.forEach(item=>{
+    const fname=item.filename||item.file;
+    html+=`<img class="thumb" src="/api/sign/thumbnail/${fname}" onclick="showOriginal('${fname}')">`;
+  });
+  return html;
+}
+
+function showOriginal(fname){
+  document.getElementById("modalImg").src="/api/sign/original/"+fname;
+  document.getElementById("imgModal").style.display="block";
+}
+
+document.getElementById("btnHistory").onclick=()=>{
+  fetch("/api/sign/image_history/"+i_info).then(r=>r.json()).then(d=>{
+    if(d.ok) document.getElementById("results").innerHTML=renderThumbnails(d.history,"과거 이미지");
+  });
+};
+document.getElementById("btnCandidates").onclick=()=>{
+  fetch("/api/sign/image_candidates?dong=당리동&bunji=502-78").then(r=>r.json()).then(d=>{
+    if(d.ok) document.getElementById("results").innerHTML=renderThumbnails(d.candidates,"후보 이미지");
+  });
+};
+</script>
+</body>
+</html>
