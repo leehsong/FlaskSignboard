@@ -1,5 +1,5 @@
 import os
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect, url_for, session
 from config import Config
 from extensions import init_extensions  # DB 풀/로거 등을 셋업하는 기존 함수
 
@@ -28,7 +28,6 @@ def register_error_handlers(app: Flask) -> None:
             return _json_err(500, "server error")
         return e
 
-
 def create_app() -> Flask:
     app = Flask(
         __name__,
@@ -43,6 +42,12 @@ def create_app() -> Flask:
     #    👉 init_extensions(app)은 내부에서 아래 키로 DB 풀을 넣어주도록 해주세요:
     #    app.config["META_POOL"], app.config["IMG_POOL"], app.config["VER_POOL"]
     init_extensions(app)
+
+    @app.route("/")
+    def root():
+        if "reviewer_name" not in session:
+            return redirect(url_for("core.start"))
+        return redirect(url_for("core.home"))
 
     # 3) 블루프린트 등록
     from blueprints.core import core_bp
@@ -60,6 +65,7 @@ def create_app() -> Flask:
     app.register_blueprint(review_bp, url_prefix="/api/review")
     app.register_blueprint(upload_bp, url_prefix="/upload")
     app.register_blueprint(mapurl_bp, url_prefix="/api/map")
+
 
     # 4) 에러 핸들러
     register_error_handlers(app)

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}회사 병합{% endblock %}
+{% block title %}회사/간판 병합 및 관리{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-5">
   <div class="row gx-4">
 
-    <!-- 1단: 동 선택 -->
+    <!-- 동 선택 -->
     <div class="col-lg-3">
       <h5>동 목록</h5>
       <div class="list-group" id="dongList" style="max-height:400px; overflow-y:auto;">
@@ -13,7 +13,7 @@
       </div>
     </div>
 
-    <!-- 2단: 번지 선택 -->
+    <!-- 번지 선택 -->
     <div class="col-lg-3">
       <h5>번지 목록</h5>
       <div class="list-group" id="bunjiList" style="max-height:400px; overflow-y:auto;">
@@ -21,7 +21,7 @@
       </div>
     </div>
 
-    <!-- 3단: 회사 목록 + 정보 -->
+    <!-- 회사 목록 + 정보 -->
     <div class="col-lg-3">
       <h5>회사 목록</h5>
       <div class="list-group" id="companyList" style="max-height:200px; overflow-y:auto;">
@@ -30,11 +30,7 @@
 
       <h5 class="mt-4">회사 정보</h5>
       <div id="companyInfo">
-        <div class="card">
-          <div class="card-body">
-            <p>회사 선택 시 정보가 표시됩니다.</p>
-          </div>
-        </div>
+        <div class="card"><div class="card-body"><p>회사 선택 시 정보가 표시됩니다.</p></div></div>
       </div>
 
       <div class="mt-3">
@@ -42,7 +38,7 @@
       </div>
     </div>
 
-    <!-- 4단: 간판 정보 -->
+    <!-- 간판 정보 -->
     <div class="col-lg-3">
       <h5>간판 정보</h5>
       <div id="signInfo" class="row g-2">
@@ -53,7 +49,7 @@
   </div>
 </div>
 
-<!-- Modal: 큰 이미지 보기 & 교체/수정 -->
+<!-- 간판 이미지 모달 -->
 <div class="modal fade" id="signModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -67,37 +63,8 @@
         <div class="d-flex justify-content-around mt-3">
           <a id="historyBtn" class="btn btn-outline-secondary btn-sm" target="_blank">🖼 이미지 히스토리</a>
           <button type="button" class="btn btn-outline-info btn-sm" id="cropBtn">✂ 이미지 수정</button>
-          <button type="button" class="btn btn-outline-success btn-sm" id="findDongBtn">🔍 동/번지 찾기</button>
+          <button type="button" class="btn btn-outline-success btn-sm" id="findDongBtn">🔍 동/번지 이미지 찾기</button>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Crop 4:3 -->
-<div class="modal fade" id="cropModal" tabindex="-1">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-      <div class="modal-body text-center">
-        <img id="cropImage" src="" class="img-fluid">
-      </div>
-      <div class="modal-footer d-flex justify-content-between">
-        <div>
-          <button id="rotateLeftBtn" class="btn btn-outline-secondary btn-sm">⟲ 좌회전</button>
-          <button id="rotateRightBtn" class="btn btn-outline-secondary btn-sm">⟳ 우회전</button>
-        </div>
-        <button id="cropSaveBtn" class="btn btn-success">저장</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: 동/번지 이미지 선택 -->
-<div class="modal fade" id="dongModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-body" id="dongImages" style="max-height:500px; overflow-y:auto;">
-        <!-- JS로 채움 -->
       </div>
     </div>
   </div>
@@ -105,243 +72,59 @@
 {% endblock content %}
 
 {% block scripts %}
-<style>
-.list-group-item.active {
-  background-color: #20c997;
-  color: #000 !important;
-}
-</style>
-
-<!-- CropperJS -->
 <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" rel="stylesheet"/>
 
 <script>
-let currentIInfo = null;
-let cropper = null;
+// --- 코드 → 한글 매핑 ---
+const SBF_MAP = {
+  "SBF01": "허가","SBF02": "신고","SBF03": "허가신고배제",
+  "SBF04": "무허가요건구비","SBF06": "무신고요건구비",
+  "SBF08": "요건불비(수량초과)","SBF09": "요건불비(위치장소위반)",
+  "SBF10": "요건불비(규격위반)","SBF11": "요건불비(표시방법위반)"
+};
+const SBD_MAP = {
+  "SBD1": "전광(간접조명)","SBD2": "네온사인","SBD3": "일반전기",
+  "SBD4": "화공","SBD5": "비조명","SBD6": "간접조명","SBD9": "기타재료"
+};
+const SBC_MAP = {
+  "SBC01": "가로형간판","SBC02": "세로형간판","SBC03": "돌출간판",
+  "SBC05": "옥상간판","SBC06": "지주이용간판","SBC11": "공공시설물이용",
+  "SBC13": "교통수단이용","SBC21": "현수막게시틀"
+};
 
-// --- 동 목록 (검수현황 포함) ---
-fetch("/api/dongs_with_stats")
-  .then(res => res.json())
-  .then(data => {
-    const dongListEl = document.getElementById("dongList");
-    dongListEl.innerHTML = "";
-    data.dongs.forEach(d => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "list-group-item list-group-item-action d-flex justify-content-between align-items-center";
-      item.innerHTML = `<span>${d.dong}</span><span class="badge bg-light text-dark">${d.reviewed}/${d.total}</span>`;
-      item.addEventListener("click", () => {
-        Array.from(dongListEl.children).forEach(c => c.classList.remove("active"));
-        item.classList.add("active");
-        loadBunjis(d.dong);
-      });
-      dongListEl.appendChild(item);
-    });
+// --- 공용 select 렌더링 함수 ---
+function renderSelect(selectId, codes, map) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = "";
+  codes.forEach(code => {
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = map[code] || code;
+    sel.appendChild(opt);
   });
-
-// --- 번지 목록 ---
-function loadBunjis(dong) {
-  const bunjiListEl = document.getElementById("bunjiList");
-  bunjiListEl.innerHTML = '<div class="list-group-item">번지 불러오는 중...</div>';
-  fetch("/api/bunjis/" + encodeURIComponent(dong))
-    .then(res => res.json())
-    .then(data => {
-      bunjiListEl.innerHTML = "";
-      if (!data.bunjis || data.bunjis.length === 0) {
-        bunjiListEl.innerHTML = '<div class="list-group-item">번지 없음</div>';
-        return;
-      }
-      data.bunjis.forEach(b => {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "list-group-item list-group-item-action";
-        item.textContent = b;
-        item.addEventListener("click", () => {
-          Array.from(bunjiListEl.children).forEach(c => c.classList.remove("active"));
-          item.classList.add("active");
-          loadCompanies(dong, b);
-        });
-        bunjiListEl.appendChild(item);
-      });
-    });
 }
 
-// --- 회사 목록 ---
-function loadCompanies(dong, bunji) {
-  const companyListEl = document.getElementById("companyList");
-  companyListEl.innerHTML = '<div class="list-group-item">회사 불러오는 중...</div>';
-  fetch(`/api/companies/${encodeURIComponent(dong)}/${encodeURIComponent(bunji)}`)
-    .then(res => res.json())
-    .then(data => {
-      companyListEl.innerHTML = "";
-      if (!data.companies || data.companies.length === 0) {
-        companyListEl.innerHTML = '<div class="list-group-item">회사 없음</div>';
-        return;
-      }
-      data.companies.forEach(c => {
-        const wrapper = document.createElement("div");
-        wrapper.className = "list-group-item";
-        wrapper.innerHTML = `
-          <div class="form-check">
-            <input class="form-check-input me-1" type="checkbox" name="company_ids" value="${c.id}">
-            <label class="form-check-label">${c.name} (ID=${c.id})</label>
-          </div>`;
-        wrapper.querySelector("input").addEventListener("change", () => {
-          const checked = Array.from(companyListEl.querySelectorAll('input[name="company_ids"]:checked'));
-          document.getElementById("mergeBtn").disabled = checked.length < 2;
-          if (checked.length >= 1) {
-            showCompanyInfo(checked[0].value);
-            showSignInfo(checked[0].value);
-          }
-        });
-        companyListEl.appendChild(wrapper);
-      });
-    });
-}
+// === 예시: 간판 등록 폼에서 코드 목록 불러오기 ===
+fetch("/api/codes/sbf").then(r=>r.json()).then(d=>{
+  renderSelect("sbfSelect", d.codes, SBF_MAP);
+});
+fetch("/api/codes/sbd").then(r=>r.json()).then(d=>{
+  renderSelect("sbdSelect", d.codes, SBD_MAP);
+});
+fetch("/api/codes/sbc").then(r=>r.json()).then(d=>{
+  renderSelect("sbcSelect", d.codes, SBC_MAP);
+});
 
-// --- 회사 정보 ---
-function showCompanyInfo(company_id) {
-  fetch(`/api/company/info/${company_id}`)
-    .then(res => res.json())
-    .then(data => {
-      if (data.ok) {
-        const info = data.info;
-        document.getElementById("companyInfo").innerHTML = `
-          <div class="card"><div class="card-body">
-            <h5>${info.company_name} (ID ${info.company_id})</h5>
-            <p>동: ${info.dong}, 번지: ${info.bunji}</p>
-          </div></div>`;
-      }
-    });
-}
-
-// --- 간판 정보 ---
-function showSignInfo(company_id) {
-  fetch(`/api/signs/${company_id}`)
-    .then(res => res.json())
-    .then(data => {
-      const signInfoEl = document.getElementById("signInfo");
-      signInfoEl.innerHTML = "";
-      if (!data.ok || data.signs.length === 0) {
-        signInfoEl.innerHTML = '<div class="text-muted">간판 없음 <button class="btn btn-sm btn-outline-success">+</button></div>';
-        return;
-      }
-      data.signs.forEach(sign => {
-        const col = document.createElement("div");
-        col.className = "col-12";
-        col.innerHTML = `
-          <div class="card h-100">
-            <div class="card-body text-center">
-              ${sign.thumb ? `<img src="${sign.thumb}" class="img-fluid mb-2 sign-thumb" data-iinfo="${sign.i_info}" style="cursor:pointer;">`
-                           : `<button class="btn btn-outline-success w-100" data-iinfo="${sign.i_info}">+</button>`}
-              <p class="small mb-1">종류: ${sign.type || '-'}</p>
-              <p class="small mb-1">분류: ${sign.category || '-'}</p>
-              <p class="small mb-0">크기: ${sign.width || 0} × ${sign.height || 0}</p>
-            </div>
-          </div>`;
-        signInfoEl.appendChild(col);
-      });
-
-      // 썸네일 클릭 시 Modal 열기
-      document.querySelectorAll(".sign-thumb").forEach(img => {
-        img.addEventListener("click", e => {
-          const i_info = e.target.dataset.iinfo;
-          currentIInfo = i_info;
-          document.getElementById("modalImage").src = e.target.src;
-          document.getElementById("modalIInfo").value = i_info;
-          document.getElementById("historyBtn").href = `/sign/history/${i_info}`;
-          new bootstrap.Modal(document.getElementById("signModal")).show();
-        });
-      });
-    });
-}
-
-// --- 이미지 교체 ---
-document.getElementById("replaceForm").addEventListener("submit", function(e) {
+// === 이미지 모달 동작 ===
+let currentIInfo=null, cropper=null;
+document.getElementById("replaceForm").addEventListener("submit", e=>{
   e.preventDefault();
-  const formData = new FormData(this);
-  fetch("/api/sign/image_replace", { method: "POST", body: formData })
-    .then(res => res.json())
-    .then(data => {
-      if (data.ok) {
-        alert("이미지 교체 완료!");
-        bootstrap.Modal.getInstance(document.getElementById("signModal")).hide();
-      } else {
-        alert("교체 실패: " + data.msg);
-      }
-    });
-});
-
-// --- Crop 기능 ---
-document.getElementById("cropBtn").addEventListener("click", () => {
-  document.getElementById("cropImage").src = document.getElementById("modalImage").src;
-  new bootstrap.Modal(document.getElementById("cropModal")).show();
-  if (cropper) cropper.destroy();
-  cropper = new Cropper(document.getElementById("cropImage"), {
-    aspectRatio: 4/3,
-    viewMode: 1
-  });
-});
-
-// 회전 버튼
-document.getElementById("rotateLeftBtn").addEventListener("click", () => {
-  if (cropper) cropper.rotate(-90);
-});
-document.getElementById("rotateRightBtn").addEventListener("click", () => {
-  if (cropper) cropper.rotate(90);
-});
-
-document.getElementById("cropSaveBtn").addEventListener("click", () => {
-  if (cropper) {
-    const canvas = cropper.getCroppedCanvas();
-    canvas.toBlob(blob => {
-      const formData = new FormData();
-      formData.append("i_info", currentIInfo);
-      formData.append("image", blob, "cropped.jpg");
-      fetch("/api/sign/image_replace", { method: "POST", body: formData })
-        .then(res => res.json())
-        .then(data => {
-          if (data.ok) {
-            alert("크롭 저장 완료!");
-            bootstrap.Modal.getInstance(document.getElementById("cropModal")).hide();
-          }
-        });
-    });
-  }
-});
-
-// --- 동/번지 이미지 찾기 ---
-document.getElementById("findDongBtn").addEventListener("click", () => {
-  const dong = document.querySelector("#dongList .active span")?.innerText;
-  const bunji = document.querySelector("#bunjiList .active")?.innerText;
-  if (!dong || !bunji) {
-    alert("동과 번지를 먼저 선택하세요.");
-    return;
-  }
-  fetch(`/static_images?dong=${encodeURIComponent(dong)}&bunji=${encodeURIComponent(bunji)}`)
-    .then(res => res.json())
-    .then(data => {
-      const container = document.getElementById("dongImages");
-      container.innerHTML = "";
-      if (!data.images || data.images.length === 0) {
-        container.innerHTML = "<p class='text-muted'>관련 이미지 없음</p>";
-        return;
-      }
-      data.images.forEach(img => {
-        const el = document.createElement("img");
-        el.src = img;
-        el.className = "img-fluid m-2";
-        el.style.maxWidth = "200px";
-        el.style.cursor = "pointer";
-        el.addEventListener("click", () => {
-          document.getElementById("modalImage").src = img;
-          document.getElementById("modalIInfo").value = currentIInfo;
-          bootstrap.Modal.getInstance(document.getElementById("dongModal")).hide();
-        });
-        container.appendChild(el);
-      });
-      new bootstrap.Modal(document.getElementById("dongModal")).show();
+  const fd=new FormData(e.target);
+  fetch("/api/sign/image_replace",{method:"POST",body:fd})
+    .then(r=>r.json()).then(d=>{
+      if(d.ok){ alert("이미지 교체 완료"); bootstrap.Modal.getInstance(document.getElementById("signModal")).hide(); }
+      else alert("실패: "+d.msg);
     });
 });
 </script>
