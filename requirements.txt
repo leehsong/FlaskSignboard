@@ -13,3 +13,4 @@ requests>=2.31.0
 beautifulsoup4
 Flask>=3.0
 python-dotenv>=1.0      # (선택) 환경변수로 KAKAO_KEY 관리 시
+pillow
