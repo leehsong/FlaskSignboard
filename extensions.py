@@ -1,6 +1,7 @@
 import logging, sys, os
 import mysql.connector.pooling, psycopg2.pool
 import configparser
+from config import Config
 
 logger = logging.getLogger("signboard")
 if not logger.handlers:
@@ -11,6 +12,13 @@ if not logger.handlers:
 def init_extensions(app):
     level = logging.DEBUG if os.getenv("LOG_LEVEL","").upper()=="DEBUG" else logging.INFO
     logger.setLevel(level)
+
+    ini = Config.DB_INI
+
+    app.config["META_POOL"] = make_pool("meta_db", ini)
+    app.config["IMG_POOL"]  = make_pool("image_db", ini)
+    app.config["VER_POOL"]  = make_pool("verify_db", ini)
+
 
 # DB 풀 생성 함수
 def make_pool(section, ini_file):

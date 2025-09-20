@@ -1,45 +1,59 @@
-<!doctype html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8" />
-  <title>메뉴 선택</title>
-  <style>
-    body { font-family: ui-sans-serif, system-ui; margin: 40px; }
-    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:16px; }
-    .card { padding: 20px; border:1px solid #ddd; border-radius:12px; }
-    .muted { color:#666; margin-bottom:16px; }
-    a.btn { display:inline-block; margin-top:8px; padding:10px 14px; border:1px solid #999; border-radius:8px; text-decoration:none; color:#111; }
-    a.btn:hover { background:#f4f4f4; }
-  </style>
-</head>
-<body>
-  <h1>🖼️ Image Reviewer (Web)</h1>
-  <div class="muted">검수자: <b>{{ reviewer }}</b> · <a href="{{ url_for('core.start') }}">검수자 변경</a></div>
-
-  <div class="grid">
-    <div class="card">
-      <h3>1) 회사 점검 / 주소 합치기</h3>
-      <p>동 → 번지 → 회사 선택 후 주소 수정 및 회사명 병합을 수행합니다.</p>
-      <a class="btn" href="{{ url_for('company.merge_page') }}">바로가기</a>
-    </div>
-
-    <div class="card">
-      <h3>2) XLS 업로드 사진 Review</h3>
-      <p>엑셀을 업로드해 이미지 검수를 진행합니다.</p>
-      <a class="btn" href="{{ url_for('upload_index') }}">업로드 페이지</a>
-    </div>
-
-    <div class="card">
-      <h3>3) 불법/신고 간판 검수</h3>
-      <p>SBF04/SBF06 조건의 간판을 동→회사명→간판 순으로 검수하고, 코멘트/이력을 저장합니다.</p>
-      <a class="btn" href="{{ url_for('illegal_page') }}">바로가기</a>
-    </div>
-
-    <div class="card">
-        <h3>4) 관리자 승인/반려</h3>
-        <p>검수자가 올린 결과를 최종 승인(A) 또는 반려(R)합니다.</p>
-        <a class="btn" href="{{ url_for('admin_panel') }}">관리자 패널</a>
-    </div>
+{% extends "base.html" %}
+{% block title %}홈{% endblock %}
+{% block content %}
+  <div class="mb-4 text-center">
+    <h2 class="text-mint"><i class="bi bi-person-circle me-1"></i> 안녕하세요, <strong>{{ reviewer }}</strong>님</h2>
   </div>
-</body>
-</html>
+
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+
+    <div class="col">
+      <div class="card card-custom h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title text-mint"><i class="bi bi-people-fill me-2"></i> 회사 병합</h5>
+          <p class="card-text text-muted small mb-3">
+            여러 회사 데이터를 비교/병합하여 대표 회사를 설정합니다.
+          </p>
+          <a href="{{ url_for('core.company_merge') }}" class="btn btn-outline-mint mt-auto">이동</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card card-custom h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title text-mint"><i class="bi bi-file-earmark-spreadsheet-fill me-2"></i> 업로드 기록</h5>
+          <p class="card-text text-muted small mb-3">
+            검수용 Excel 업로드 및 기록 확인 가능합니다.
+          </p>
+          <a href="{{ url_for('core.upload_records') }}" class="btn btn-outline-mint mt-auto">이동</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card card-custom h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title text-mint"><i class="bi bi-signpost-split me-2"></i> 간판 정보 변경</h5>
+          <p class="card-text text-muted small mb-3">
+            각 회사별 간판 정보를 추가 또는 수정할 수 있습니다.
+          </p>
+          <a href="{{ url_for('core.sign_edit') }}" class="btn btn-outline-mint mt-auto">이동</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card card-custom h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title text-mint"><i class="bi bi-check2-all me-2"></i> 검수 정보 보기</h5>
+          <p class="card-text text-muted small mb-3">
+            완료된 검수 항목들을 조회하고 결과를 확인합니다.
+          </p>
+          <a href="{{ url_for('core.view_reviews') }}" class="btn btn-outline-mint mt-auto">이동</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+{% endblock %}

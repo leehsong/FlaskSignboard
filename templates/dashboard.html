@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}대시보드{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+
+        <!-- 카드 1: 회사 점검 / 주소 합치기 -->
+        <div class="col">
+            <div class="card h-100 card-mint-border shadow-sm">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <h5 class="card-title text-mint"><i class="bi bi-geo-alt-fill me-2"></i> 회사 점검 / 주소 합치기</h5>
+                        <p class="card-text text-muted small">
+                            동 → 번지 → 회사 선택 후 주소 수정 및 회사명 병합을 수행합니다.
+                        </p>
+                    </div>
+                    <div class="mt-3">
+                        <a href="{{ url_for('merge_page_endpoint') }}" class="btn btn-outline-mint w-100">
+                            <i class="bi bi-arrow-right-circle me-1"></i> 바로가기
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 카드 2: XLS 업로드 사진 Review -->
+        <div class="col">
+            <div class="card h-100 card-mint-border shadow-sm">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <h5 class="card-title text-mint"><i class="bi bi-file-earmark-spreadsheet-fill me-2"></i> XLS 업로드 사진 Review</h5>
+                        <p class="card-text text-muted small">
+                            엑셀을 업로드해 이미지 검수를 진행합니다.
+                        </p>
+                    </div>
+                    <div class="mt-3">
+                        <a href="{{ url_for('upload.upload_index') }}" class="btn btn-outline-mint w-100">
+                            <i class="bi bi-upload me-1"></i> 업로드 페이지
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 카드 3: 불법/신고 간판 검수 -->
+        <div class="col">
+            <div class="card h-100 card-mint-border shadow-sm">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <h5 class="card-title text-mint"><i class="bi bi-exclamation-triangle-fill me-2"></i> 불법/신고 간판 검수</h5>
+                        <p class="card-text text-muted small">
+                            SBF04 / SBF06 조건의 간판을 동→회사명→간판 순으로 검수하고, 코멘트 / 이력을 저장합니다.
+                        </p>
+                    </div>
+                    <div class="mt-3">
+                        <a href="{{ url_for('illegal_review_endpoint') }}" class="btn btn-outline-mint w-100">
+                            <i class="bi bi-shield-alert me-1"></i> 바로가기
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 카드 4: 관리자 승인/반려 -->
+        <div class="col">
+            <div class="card h-100 card-mint-border shadow-sm">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <h5 class="card-title text-mint"><i class="bi bi-check2-circle me-2"></i> 관리자 승인/반려</h5>
+                        <p class="card-text text-muted small">
+                            검수자가 올린 결과를 최종 승인(A) 또는 반려(R)합니다.
+                        </p>
+                    </div>
+                    <div class="mt-3">
+                        <a href="{{ url_for('admin_panel_endpoint') }}" class="btn btn-outline-mint w-100">
+                            <i class="bi bi-person-badge me-1"></i> 관리자 패널
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
