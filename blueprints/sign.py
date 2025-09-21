@@ -238,3 +238,29 @@ def api_static_images():
     urls = [f"/static/images/{f.name}" for f in files]
 
     return jsonify({"images": urls})
+
+@sign_bp.route("/list/<i_cpn>")
+def api_sign_list(i_cpn):
+    c = cfg()
+    sql = f"""
+      SELECT s.{c['COL_ADIDX']} AS i_info,
+             s.{c['COL_SBF']}   AS i_sc_sbf,
+             s.{c['COL_SBD']}   AS i_sc_sbd,
+             s.{c['COL_SBC']}   AS i_sc_sbc,
+             s.q_img_w, s.q_img_h
+        FROM {c['SIGN_TABLE']} s
+       WHERE s.{c['COL_CP_IDX']}=%s
+    """
+    rows = db_select(sql, (i_cpn,), pool="IMG_POOL")
+    signs = []
+    for r in rows:
+        i_info, sbf, sbd, sbc, w, h = r
+        signs.append({
+            "i_info": str(i_info),
+            "i_sc_sbf": sbf,
+            "i_sc_sbd": sbd,
+            "i_sc_sbc": sbc,
+            "width": w, "height": h,
+            "thumb": f"/api/sign/image_blob/{i_info}"
+        })
+    return jsonify({"ok": True, "signs": signs})

@@ -3,45 +3,45 @@
 
 {% block content %}
 <div class="container-fluid py-5">
-  <div class="row gx-4">
+  <div class="row gx-3">
 
-    <!-- 동 선택 -->
+    <!-- 1단: 동 선택 -->
     <div class="col-lg-3">
-      <h5>동 목록</h5>
-      <div class="list-group" id="dongList" style="max-height:400px; overflow-y:auto;">
+      <h5>🏢 동 목록</h5>
+      <div id="dongList" class="list-group custom-list" style="max-height:300px; overflow-y:auto;">
         <div class="list-group-item">동 목록 불러오는 중...</div>
       </div>
     </div>
 
-    <!-- 번지 선택 -->
+    <!-- 2단: 번지 선택 -->
     <div class="col-lg-3">
-      <h5>번지 목록</h5>
-      <div class="list-group" id="bunjiList" style="max-height:400px; overflow-y:auto;">
+      <h5>🏠 번지 목록</h5>
+      <div id="bunjiList" class="list-group custom-list" style="max-height:300px; overflow-y:auto;">
         <div class="list-group-item">동을 먼저 선택하세요.</div>
       </div>
     </div>
 
-    <!-- 회사 목록 + 정보 -->
+    <!-- 3단: 회사 목록 + 정보 -->
     <div class="col-lg-3">
-      <h5>회사 목록</h5>
-      <div class="list-group" id="companyList" style="max-height:200px; overflow-y:auto;">
+      <h5>🏭 회사 목록</h5>
+      <div id="companyList" class="list-group custom-list" style="max-height:300px; overflow-y:auto;">
         <div class="list-group-item">동/번지를 먼저 선택하세요.</div>
       </div>
 
-      <h5 class="mt-4">회사 정보</h5>
-      <div id="companyInfo">
+      <h6 class="mt-3">회사 정보</h6>
+      <div id="companyInfo" style="max-height:220px; overflow-y:auto;">
         <div class="card"><div class="card-body"><p>회사 선택 시 정보가 표시됩니다.</p></div></div>
       </div>
 
-      <div class="mt-3">
+      <div class="mt-2">
         <button id="mergeBtn" class="btn btn-mint w-100" disabled>선택된 회사 병합하기</button>
       </div>
     </div>
 
-    <!-- 간판 정보 -->
+    <!-- 4단: 간판 정보 -->
     <div class="col-lg-3">
-      <h5>간판 정보</h5>
-      <div id="signInfo" class="row g-2">
+      <h5>📋 간판 정보</h5>
+      <div id="signInfo" class="row g-2" style="max-height:520px; overflow-y:auto;">
         <div class="text-muted">회사 선택 시 간판 정보가 표시됩니다.</div>
       </div>
     </div>
@@ -49,83 +49,480 @@
   </div>
 </div>
 
-<!-- 간판 이미지 모달 -->
-<div class="modal fade" id="signModal" tabindex="-1">
+<!-- 회사 편집 모달 -->
+<div class="modal fade" id="companyModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
-      <div class="modal-body text-center">
-        <img id="modalImage" src="" class="img-fluid mb-3" alt="간판 이미지">
-        <form id="replaceForm" enctype="multipart/form-data">
-          <input type="file" name="image" accept="image/*" class="form-control mb-2">
-          <input type="hidden" name="i_info" id="modalIInfo">
-          <button type="submit" class="btn btn-primary">이미지 교체</button>
+      <div class="modal-header"><h5 id="companyModalTitle" class="modal-title">회사 정보</h5></div>
+      <div class="modal-body">
+        <form id="companyForm">
+          <input type="hidden" id="m_i_cpn">
+          <div class="mb-2"><label class="form-label">회사명</label><input type="text" id="m_t_cpn" class="form-control"></div>
+          <div class="mb-2"><label class="form-label">동</label><input type="text" id="m_t_add_3" class="form-control"></div>
+          <div class="mb-2"><label class="form-label">번지</label><input type="text" id="m_t_add_num" class="form-control" onblur="syncAddress('bunji')"></div>
+          <div class="mb-2"><label class="form-label">상세</label><input type="text" id="m_t_add_2" class="form-control"></div>
+          <div class="mb-2"><label class="form-label">도로명 주소</label><input type="text" id="m_t_road" class="form-control" onblur="syncAddress('road')"></div>
+          <div class="mb-2"><label class="form-label">연락처</label><input type="text" id="m_t_tel" class="form-control"></div>
         </form>
-        <div class="d-flex justify-content-around mt-3">
-          <a id="historyBtn" class="btn btn-outline-secondary btn-sm" target="_blank">🖼 이미지 히스토리</a>
-          <button type="button" class="btn btn-outline-info btn-sm" id="cropBtn">✂ 이미지 수정</button>
-          <button type="button" class="btn btn-outline-success btn-sm" id="findDongBtn">🔍 동/번지 이미지 찾기</button>
-        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnCompDelete" class="btn btn-danger">삭제</button>
+        <button id="btnCompSave" class="btn btn-success">저장</button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
       </div>
     </div>
   </div>
 </div>
+
+<!-- 간판 이미지 모달 -->
+<div class="modal fade" id="signModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-body text-center">
+      <div class="mb-3">
+        <div class="sign-thumb-wrap selected" style="display:inline-block;">
+          <img id="modalImage" src="" class="img-fluid" alt="간판 이미지">
+        </div>
+      </div>
+      <form id="replaceForm" enctype="multipart/form-data" class="d-flex gap-2">
+        <input type="file" name="image" accept="image/*" class="form-control">
+        <input type="hidden" name="i_info" id="modalIInfo">
+        <button type="submit" class="btn btn-primary">이미지 교체</button>
+      </form>
+      <div class="d-flex justify-content-around mt-3">
+        <a id="historyBtn" class="btn btn-outline-secondary btn-sm" target="_blank">🖼 이미지 히스토리</a>
+        <button type="button" class="btn btn-outline-info btn-sm" id="cropBtn">✂ 이미지 수정</button>
+        <button type="button" class="btn btn-outline-success btn-sm" id="findDongBtn">🔍 동/번지 이미지 찾기</button>
+        <button type="button" class="btn btn-outline-warning btn-sm" id="saveRoadviewBtn">🛰 로드뷰 저장</button>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- Crop 모달 -->
+<div class="modal fade" id="cropModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl"><div class="modal-content">
+    <div class="modal-body text-center"><img id="cropImage" src="" class="img-fluid" alt="크롭 대상"></div>
+    <div class="modal-footer d-flex justify-content-between">
+      <div>
+        <button id="rotateLeftBtn" class="btn btn-outline-secondary btn-sm">⟲ 좌회전</button>
+        <button id="rotateRightBtn" class="btn btn-outline-secondary btn-sm">⟳ 우회전</button>
+      </div>
+      <button id="cropSaveBtn" class="btn btn-success">저장</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- 동/번지 이미지 선택 -->
+<div class="modal fade" id="dongModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-body" id="dongImages" style="max-height:500px; overflow-y:auto;"></div>
+  </div></div>
+</div>
 {% endblock content %}
 
 {% block scripts %}
+<style>
+.sign-thumb-wrap { position: relative; display:inline-block; }
+.sign-thumb-wrap.selected { outline: 3px solid #0d6efd; }
+.sign-thumb-wrap.selected::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,0.4); }
+.custom-list .list-group-item.active, .custom-list .list-group-item:focus {
+  background-color: #0d6efd !important; color: #fff !important;
+}
+.sign-meta { max-width: 460px; margin: 0 auto; text-align: left; }
+.sign-meta .k { display:inline-block; width: 110px; color:#666; }
+.sign-meta .v { font-weight: 600; }
+</style>
+
 <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" rel="stylesheet"/>
 
 <script>
-// --- 코드 → 한글 매핑 ---
-const SBF_MAP = {
-  "SBF01": "허가","SBF02": "신고","SBF03": "허가신고배제",
-  "SBF04": "무허가요건구비","SBF06": "무신고요건구비",
-  "SBF08": "요건불비(수량초과)","SBF09": "요건불비(위치장소위반)",
-  "SBF10": "요건불비(규격위반)","SBF11": "요건불비(표시방법위반)"
-};
-const SBD_MAP = {
-  "SBD1": "전광(간접조명)","SBD2": "네온사인","SBD3": "일반전기",
-  "SBD4": "화공","SBD5": "비조명","SBD6": "간접조명","SBD9": "기타재료"
-};
-const SBC_MAP = {
-  "SBC01": "가로형간판","SBC02": "세로형간판","SBC03": "돌출간판",
-  "SBC05": "옥상간판","SBC06": "지주이용간판","SBC11": "공공시설물이용",
-  "SBC13": "교통수단이용","SBC21": "현수막게시틀"
-};
+document.addEventListener("DOMContentLoaded", () => {
+  const $ = (id) => document.getElementById(id);
 
-// --- 공용 select 렌더링 함수 ---
-function renderSelect(selectId, codes, map) {
-  const sel = document.getElementById(selectId);
-  sel.innerHTML = "";
-  codes.forEach(code => {
-    const opt = document.createElement("option");
-    opt.value = code;
-    opt.textContent = map[code] || code;
-    sel.appendChild(opt);
-  });
-}
+  // ------- 상태 -------
+  let currentDong="", currentBunji="", currentCompanyId="", currentCompanyName="";
+  let currentIInfo=null, cropper=null;
+  let lastCompanyDetail=null; // 회사 좌표/주소 재사용
 
-// === 예시: 간판 등록 폼에서 코드 목록 불러오기 ===
-fetch("/api/codes/sbf").then(r=>r.json()).then(d=>{
-  renderSelect("sbfSelect", d.codes, SBF_MAP);
-});
-fetch("/api/codes/sbd").then(r=>r.json()).then(d=>{
-  renderSelect("sbdSelect", d.codes, SBD_MAP);
-});
-fetch("/api/codes/sbc").then(r=>r.json()).then(d=>{
-  renderSelect("sbcSelect", d.codes, SBC_MAP);
-});
+  // ------- 라벨 매핑(한글) -------
+  const SBF_MAP={"SBF01":"허가","SBF02":"신고","SBF03":"허가·신고 배제","SBF04":"무허가(요건구비)","SBF06":"무신고(요건구비)","SBF08":"요건불비(수량초과)","SBF09":"요건불비(위치/장소)","SBF10":"요건불비(규격)","SBF11":"요건불비(표시방법)"};
+  const SBD_MAP={"SBD1":"전광(간접조명)","SBD2":"네온사인","SBD3":"일반전기","SBD4":"화공","SBD5":"비조명","SBD6":"간접조명","SBD9":"기타재료"};
+  const SBC_MAP={"SBC01":"가로형간판","SBC02":"세로형간판","SBC03":"돌출간판","SBC05":"옥상간판","SBC06":"지주이용간판","SBC11":"공공시설물이용","SBC13":"교통수단이용","SBC21":"현수막게시틀"};
+  const kLabel=(m,c)=>(c&&m[c])||c||"-";
 
-// === 이미지 모달 동작 ===
-let currentIInfo=null, cropper=null;
-document.getElementById("replaceForm").addEventListener("submit", e=>{
-  e.preventDefault();
-  const fd=new FormData(e.target);
-  fetch("/api/sign/image_replace",{method:"POST",body:fd})
-    .then(r=>r.json()).then(d=>{
-      if(d.ok){ alert("이미지 교체 완료"); bootstrap.Modal.getInstance(document.getElementById("signModal")).hide(); }
-      else alert("실패: "+d.msg);
+  // ------- 유틸 -------
+  async function fetchJSON(url){ const r=await fetch(url); if(!r.ok) throw new Error(`HTTP ${r.status} @ ${url}`); return r.json(); }
+  async function postJSON(url,data){ const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); if(!r.ok) throw new Error(`HTTP ${r.status} @ ${url}`); return r.json(); }
+  async function tryPost(urls,data){ for(const u of urls){ try{ const j=await postJSON(u,data); if(j && (j.ok || j.url || j.path)) return j; }catch(_){/*next*/} } throw new Error("로드뷰 저장 API를 찾을 수 없습니다."); }
+  function setActive(listEl, btn){ [...listEl.children].forEach(c=>c.classList.remove("active")); btn.classList.add("active"); }
+  // ✅ 네이버 링크: 지도는 bunji만으로 검색, 로드뷰는 좌표 우선(없으면 bunji 검색으로 폴백)
+  function buildNaverLinksFromDetail(detail) {
+    // bunji가 '감천동 1-13' 처럼 "동 + 번지"를 포함하므로 우선 사용
+    const searchQuery =
+      (detail && detail.bunji) ||
+      detail?.road ||
+      [detail?.dong, detail?.bunji, detail?.bunji2].filter(Boolean).join(" ") ||
+      "";
+
+    const enc = encodeURIComponent(searchQuery);
+
+    // 지도는 항상 bunji 검색으로 열기
+    const mapLink = `https://map.naver.com/v5/search/${enc}`;
+
+    // 로드뷰는 좌표가 있으면 좌표로, 없으면 지도검색 링크로 대체
+    let roadLink = mapLink;
+    if (detail && detail.lat && detail.lng) {
+      const { lat, lng } = detail;
+      roadLink = `https://map.naver.com/v5/roadview/${lat},${lng}`;
+    }
+
+    return { mapLink, roadLink, searchQuery };
+  }
+  const first=(o,...keys)=>{ for(const k of keys){ const v=o?.[k]; if(v!=null && v!=="") return v; } return null; };
+
+  // 물리 치수 + c_prt
+  function extractPhysicalDims(o){
+    const pickNum=(...keys)=>{ for(const k of keys){ const v=o?.[k]; if(v!=null && v!==""){ const n=Number(v); if(!Number.isNaN(n)) return n; } } return null; };
+    let w_m=pickNum("width_m","w_m"), h_m=pickNum("height_m","h_m");
+    let w_cm=pickNum("q_w","width_cm","w_cm","s_width","sign_width","width");
+    let h_cm=pickNum("q_h","height_cm","h_cm","s_height","sign_height","height");
+    let w_mm=pickNum("width_mm","w_mm"), h_mm=pickNum("height_mm","h_mm");
+    const l_cm=pickNum("q_l","length_cm","l_cm","length");
+    const t_cm=pickNum("q_s","thickness_cm","t_cm","thickness");
+    let unit="cm", W=null, H=null;
+    if(w_m!=null || h_m!=null){ unit="m"; W=w_m; H=h_m; }
+    else if(w_cm!=null || h_cm!=null){ unit="cm"; W=w_cm; H=h_cm; }
+    else if(w_mm!=null || h_mm!=null){ unit="mm"; W=w_mm; H=h_mm; }
+    let area_m2=null;
+    if(W!=null && H!=null){
+      if(unit==="m") area_m2=W*H;
+      else if(unit==="cm") area_m2=(W*H)/10000;
+      else if(unit==="mm") area_m2=(W*H)/1_000_000;
+    }
+    const cprt=first(o,"c_prt","t_prt","q_prt","size_text","dimension","size_str","spec_text");
+    return {unit,W,H,L:l_cm,T:t_cm,area_m2,cprt};
+  }
+
+  function renderOptionalAttrs(o){
+    const kv=[];
+    const place=first(o,"place","t_place","location","loc","pos","position");
+    const floor=first(o,"floor","i_floor","q_floor","t_floor","lvl");
+    const qty  =first(o,"qty","quantity","q_qty","count","cnt");
+    const mat  =first(o,"material","t_material","mat");
+    const text =first(o,"text","txt","t_txt","content","t_content");
+    const note =first(o,"memo","note","remark","desc","description");
+    if(place) kv.push(["설치위치",place]);
+    if(floor) kv.push(["층",floor]);
+    if(qty)   kv.push(["수량",qty]);
+    if(mat)   kv.push(["재질",mat]);
+    if(text)  kv.push(["문구",text]);
+    if(note)  kv.push(["비고",note]);
+    return kv.map(([k,v])=>`<div><span class="k">${k}</span><span class="v">${v}</span></div>`).join("");
+  }
+
+  // ------- 동/번지/회사 목록 로딩 -------
+  async function loadDongs(){
+    const el=$("dongList");
+    el.innerHTML="<div class='list-group-item'>동 목록 불러오는 중...</div>";
+    try{
+      let data=await fetchJSON("/api/dongs_with_stats").catch(()=>null);
+      if(!data) data=await fetchJSON("/api/dongs");
+      const items=data.dongs || data || [];
+      el.innerHTML="";
+      items.forEach(x=>{
+        const dong=typeof x==="string"?x:x.dong;
+        const reviewed=(x.reviewed??"-"), total=(x.total??"-");
+        const btn=document.createElement("button");
+        btn.type="button"; btn.className="list-group-item list-group-item-action d-flex justify-content-between";
+        btn.innerHTML=`<span>${dong}</span><span class="badge bg-light text-dark">${reviewed}/${total}</span>`;
+        btn.onclick=()=>{ setActive(el,btn); currentDong=dong; loadBunjis(dong); };
+        el.appendChild(btn);
+      });
+    }catch(e){ el.innerHTML=`<div class='list-group-item text-danger'>불러오기 실패: ${e.message}</div>`; }
+  }
+
+  async function loadBunjis(dong){
+    const el=$("bunjiList");
+    el.innerHTML="<div class='list-group-item'>번지 불러오는 중...</div>";
+    try{
+      const data=await fetchJSON(`/api/bunjis/${encodeURIComponent(dong)}`);
+      const bunjis=data.bunjis||[];
+      el.innerHTML="";
+      bunjis.forEach(b=>{
+        const btn=document.createElement("button");
+        btn.type="button"; btn.className="list-group-item list-group-item-action"; btn.textContent=b;
+        btn.onclick=()=>{ setActive(el,btn); currentBunji=b; loadCompanies(dong,b); };
+        el.appendChild(btn);
+      });
+    }catch(e){ el.innerHTML=`<div class='list-group-item text-danger'>불러오기 실패: ${e.message}</div>`; }
+  }
+
+  async function loadCompanies(dong,bunji){
+    const el=$("companyList");
+    el.innerHTML="<div class='list-group-item'>회사 불러오는 중...</div>";
+    try{
+      const data=await fetchJSON(`/api/companies/${encodeURIComponent(dong)}/${encodeURIComponent(bunji)}`);
+      const comps=data.companies||[];
+      el.innerHTML="";
+      const selected=new Set();
+      function updateMergeBtn(){ $("mergeBtn").disabled = selected.size<2; }
+
+      comps.forEach(c=>{
+        const row=document.createElement("div");
+        row.className="list-group-item d-flex align-items-center gap-2";
+        row.innerHTML=`<input type="checkbox" value="${c.id}">
+                        <span class="flex-grow-1">${c.name} (ID=${c.id})</span>`;
+        const cb=row.querySelector("input");
+        cb.onchange=()=>{
+          cb.checked?selected.add(c.id):selected.delete(c.id);
+          updateMergeBtn();
+          if(cb.checked){ currentCompanyId=c.id; currentCompanyName=c.name; showCompanyInfo(c.id); showSignInfo(c.id); }
+        };
+        row.ondblclick=()=>openCompanyEditor(c.id,c.name);
+        el.appendChild(row);
+      });
+
+      $("mergeBtn").onclick=async()=>{
+        if(selected.size<2) return;
+        const canonical=prompt("대표 회사명을 입력하세요(병합 후 회사명):", currentCompanyName||"");
+        if(!canonical) return;
+        try{
+          const res=await fetch("/api/merge_companies",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({selected_ids:[...selected], canonical_name:canonical})}).then(r=>r.json());
+          if(res.ok){ alert(`병합 완료 (대표 i_cpn=${res.canonical_id})`); loadCompanies(currentDong,currentBunji); showSignInfo(res.canonical_id); }
+          else alert("병합 실패: "+(res.msg||""));
+        }catch(e){ alert("병합 오류: "+e.message); }
+      };
+    }catch(e){ el.innerHTML=`<div class='list-group-item text-danger'>불러오기 실패: ${e.message}</div>`; }
+  }
+
+  // ------- 회사 상세(폴백 + 좌표 보강) & 카드 -------
+  async function fetchCompanyDetail(i_cpn){
+    try{
+      const j=await fetchJSON(`/api/company/detail?i_cpn=${encodeURIComponent(i_cpn)}`);
+      return {company_id:i_cpn, company_name:j.company_name, dong:j.dong, bunji:j.bunji, bunji2:j.bunji2, road:j.t_road, tel:j.t_tel, lat:j.lat||j.y, lng:j.lng||j.x};
+    }catch(_){}
+    try{
+      const j=await fetchJSON(`/api/company/info/${encodeURIComponent(i_cpn)}`);
+      if(j&&j.ok){ const x=j.info||{}; return {company_id:x.company_id||i_cpn, company_name:x.company_name, dong:x.dong, bunji:x.bunji, bunji2:x.bunji2, road:x.road, tel:x.tel, lat:x.lat||x.y, lng:x.lng||x.x}; }
+    }catch(_){}
+    return null;
+  }
+  async function ensureCoords(d){
+    if(d&&d.lat&&d.lng) return d;
+    const q=d.road || [d.dong,d.bunji,d.bunji2].filter(Boolean).join(" ");
+    if(!q) return d;
+    try{ const g=await fetchJSON(`/api/geocode/sync?addr=${encodeURIComponent(q)}`); if(g){ d.lat=g.lat||g.y; d.lng=g.lng||g.x; } }catch(_){}
+    return d;
+  }
+  function companyCardHTML(d, i_cpn) {
+    const links = buildNaverLinksFromDetail(d); // <-- 변경: detail 전체 전달
+    return `<div class='card'><div class='card-body'>
+      <h5 class="d-flex align-items-center justify-content-between">
+        <span>${d.company_name || "-"} <span class="text-muted">(ID:${d.company_id || i_cpn})</span></span>
+        <span class="d-flex gap-2">
+          <a href="${links.mapLink}" target="_blank" class="btn btn-outline-primary btn-sm">네이버 지도</a>
+          <a href="${links.roadLink}" target="_blank" class="btn btn-outline-dark btn-sm">로드뷰</a>
+          <button id="btnSaveRoadviewCompany" class="btn btn-outline-warning btn-sm" type="button">🛰 로드뷰 저장</button>
+        </span>
+      </h5>
+      <div>동: <b>${d.dong || "-"}</b></div>
+      <div>번지: <b>${d.bunji || "-"}</b> ${d.bunji2 ? `<span class="text-muted">(${d.bunji2})</span>` : ""}</div>
+      <div>도로명: <b>${d.road || "-"}</b></div>
+      <div>연락처: <b>${d.tel || "-"}</b></div>
+    </div></div>`;
+  }
+  async function showCompanyInfo(i_cpn) {
+    let d = await fetchCompanyDetail(i_cpn);
+    if (!d) {
+      $("companyInfo").innerHTML = `<div class='card'><div class='card-body text-danger'>회사 조회 실패</div></div>`;
+      return;
+    }
+    d = await ensureCoords(d);
+    $("companyInfo").innerHTML = companyCardHTML(d, i_cpn);
+
+    // 회사 로드뷰 저장 버튼: addr은 bunji 우선
+    $("btnSaveRoadviewCompany")?.addEventListener("click", async () => {
+      const addrForSave = d.bunji || d.road || [d.dong, d.bunji, d.bunji2].filter(Boolean).join(" ");
+      if (!(d.lat && d.lng) && !addrForSave) {
+        alert("좌표 또는 주소가 없어 로드뷰를 저장할 수 없습니다.");
+        return;
+      }
+      try {
+        const resp = await tryPost(
+          ["/api/illegal/roadview/save", "/api/illegal/roadview/snapshot", "/api/illegal/save_roadview", "/api/sign/roadview/save"],
+          { lat: d.lat, lng: d.lng, addr: addrForSave, i_cpn: i_cpn }
+        );
+        alert("로드뷰 저장 완료" + (resp.path ? `\n저장경로: ${resp.path}` : ""));
+      } catch (e) {
+        alert("로드뷰 저장 실패: " + e.message);
+      }
     });
+
+    // 화면의 다른 곳에서도 재사용하려면 이걸 유지
+    window.lastCompanyDetail = d;
+  }
+
+  // 편집 모달
+  async function openCompanyEditor(i_cpn,name){
+    const d=await fetchCompanyDetail(i_cpn);
+    if(!d){ alert("회사 조회 실패"); return; }
+    $("companyModalTitle").textContent=`회사 정보 — ${name} (i_cpn=${i_cpn})`;
+    $("m_i_cpn").value=i_cpn; $("m_t_cpn").value=d.company_name||"";
+    $("m_t_add_3").value=d.dong||""; $("m_t_add_num").value=d.bunji||"";
+    $("m_t_add_2").value=d.bunji2||""; $("m_t_road").value=d.road||""; $("m_t_tel").value=d.tel||"";
+    new bootstrap.Modal($("companyModal")).show();
+  }
+  window.openCompanyEditor=openCompanyEditor;
+
+  $("btnCompSave")?.addEventListener("click", async()=>{
+    const i_cpn=$("m_i_cpn").value;
+    const fields={ t_cpn:$("m_t_cpn").value, t_add_3:$("m_t_add_3").value, t_add_num:$("m_t_add_num").value, t_add_2:$("m_t_add_2").value, t_road:$("m_t_road").value, t_tel:$("m_t_tel").value };
+    const r=await fetch("/api/company/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({i_cpn,fields})}).then(r=>r.json()).catch(()=>null);
+    if(r&&r.ok){ alert("저장 완료"); bootstrap.Modal.getInstance($("companyModal")).hide(); if(currentDong&&currentBunji) loadCompanies(currentDong,currentBunji); showCompanyInfo(i_cpn); }
+    else alert("저장 실패");
+  });
+  $("btnCompDelete")?.addEventListener("click", async()=>{
+    const i_cpn=$("m_i_cpn").value;
+    if(!confirm("정말 삭제하시겠습니까?")) return;
+    const r=await fetch("/api/company/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({i_cpn})}).then(r=>r.json()).catch(()=>null);
+    if(r&&r.ok){ alert("삭제 완료"); bootstrap.Modal.getInstance($("companyModal")).hide(); if(currentDong&&currentBunji) loadCompanies(currentDong,currentBunji); }
+    else alert("삭제 실패");
+  });
+  window.syncAddress = async (type)=>{
+    const query=(type==="road")?$("m_t_road").value:$("m_t_add_num").value;
+    if(!query) return;
+    const r=await fetch(`/api/geocode/sync?addr=${encodeURIComponent(query)}`).then(x=>x.json()).catch(()=>null);
+    if(r&&r.ok){ if(r.dong) $("m_t_add_3").value=r.dong; if(r.road) $("m_t_road").value=r.road; }
+  };
+
+  // ------- 간판 목록 로딩 -------
+  async function fetchCompanySigns(i_cpn){
+    const tries=[`/api/sign/list/${encodeURIComponent(i_cpn)}`, `/api/signs/${encodeURIComponent(i_cpn)}`, `/api/sign/by_company/${encodeURIComponent(i_cpn)}`];
+    for(const u of tries){
+      try{ const j=await fetchJSON(u); const arr=j.signs||j.data||j||[]; if((Array.isArray(arr)&&arr.length)||(j.ok&&j.signs)) return {ok:true,signs:arr}; }catch(_){}
+    }
+    return {ok:false,signs:[]};
+  }
+  function normalizeSign(s){
+    const i_info=s.i_info||s.ad_id||s.adidx||s.i_ad||s.i_img||s.id||"";
+    const thumb=s.thumb||(i_info?(`/api/sign/image_blob/${i_info}`):"");
+    const sbf=s.i_sc_sbf||s.sbf||s.sbf_code; const sbd=s.i_sc_sbd||s.sbd||s.sbd_code; const sbc=s.i_sc_sbc||s.sbc||s.sbc_code;
+    const typeLabel=s.type||kLabel(SBD_MAP,sbd); const categLabel=s.category||kLabel(SBC_MAP,sbc);
+    const dims=extractPhysicalDims(s);
+    return {i_info,thumb,sbf,sbd,sbc,typeLabel,categLabel,dims,raw:s};
+  }
+  async function showSignInfo(i_cpn){
+    const wrap=$("signInfo"); wrap.innerHTML="간판 불러오는 중...";
+    const res=await fetchCompanySigns(i_cpn);
+    if(!res.ok||!res.signs.length){ wrap.innerHTML="<div class='text-muted'>간판 없음</div>"; return; }
+    const bust=Date.now();
+    wrap.innerHTML="";
+    res.signs.forEach(raw=>{
+      const sn=normalizeSign(raw); const sbfLabel=kLabel(SBF_MAP,sn.sbf);
+      const {unit,W,H,L,T,area_m2,cprt}=sn.dims;
+      let sizeLines="";
+      if(cprt) sizeLines+=`<div><span class="k">규격(표기)</span><span class="v">${cprt}</span></div>`;
+      if(W!=null||H!=null) sizeLines+=`<div><span class="k">규격</span><span class="v">${W??"-"} × ${H??"-"} ${unit}</span></div>`;
+      if(typeof area_m2==="number") sizeLines+=`<div><span class="k">면적</span><span class="v">${(Math.round(area_m2*100)/100).toLocaleString()} m²</span></div>`;
+      if(L!=null) sizeLines+=`<div><span class="k">길이</span><span class="v">${L} cm</span></div>`;
+      if(T!=null) sizeLines+=`<div><span class="k">두께</span><span class="v">${T} cm</span></div>`;
+      const extra=renderOptionalAttrs(sn.raw);
+      const imgSrc=sn.thumb?`${sn.thumb}${sn.thumb.includes('?')?'&':'?'}v=${bust}`:"";
+      const card=document.createElement("div");
+      card.className="col-12";
+      card.innerHTML=`<div class="card h-100"><div class="card-body text-center">
+        ${imgSrc?`<div class="sign-thumb-wrap"><img src="${imgSrc}" class="img-fluid mb-2 sign-thumb" data-iinfo="${sn.i_info}" style="cursor:pointer;"></div>`:`<div class="text-muted mb-2">이미지 없음</div>`}
+        <div class="sign-meta">
+          <div><span class="k">간판ID</span><span class="v">${sn.i_info||"-"}</span></div>
+          <div><span class="k">허가/신고</span><span class="v">${sbfLabel}</span></div>
+          <div><span class="k">종류(조명/재료)</span><span class="v">${sn.typeLabel||"-"}</span></div>
+          <div><span class="k">분류(간판형태)</span><span class="v">${sn.categLabel||"-"}</span></div>
+          ${sizeLines}${extra}
+        </div>
+      </div></div>`;
+      wrap.appendChild(card);
+    });
+
+    // 썸네일 클릭 → 모달
+    document.querySelectorAll(".sign-thumb").forEach(img=>{
+      img.addEventListener("click",(e)=>{
+        document.querySelectorAll(".sign-thumb-wrap").forEach(w=>w.classList.remove("selected"));
+        e.target.closest(".sign-thumb-wrap")?.classList.add("selected");
+        currentIInfo=e.target.dataset.iinfo;
+        const base=e.target.src.split("?")[0];
+        $("modalImage").src=`${base}?v=${Date.now()}`;
+        $("modalIInfo").value=currentIInfo;
+        $("historyBtn").href=`/api/sign/history/${currentIInfo}`;
+        new bootstrap.Modal($("signModal")).show();
+      });
+    });
+  }
+
+  // ------- 이미지 교체/크롭 -------
+  $("replaceForm")?.addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    try{
+      const d=await fetch("/api/sign/image_replace",{method:"POST",body:fd}).then(r=>r.json());
+      if(d.ok){ alert("이미지 교체 완료"); bootstrap.Modal.getInstance($("signModal")).hide(); if(currentCompanyId) showSignInfo(currentCompanyId); }
+      else alert("실패: "+(d.msg||""));
+    }catch(e){ alert("오류: "+e.message); }
+  });
+  $("cropBtn")?.addEventListener("click", ()=>{
+    $("cropImage").src=$("modalImage").src;
+    new bootstrap.Modal($("cropModal")).show();
+    if(cropper) cropper.destroy();
+    cropper=new Cropper($("cropImage"),{aspectRatio:4/3,viewMode:1});
+  });
+  $("rotateLeftBtn")?.addEventListener("click", ()=>{ if(cropper) cropper.rotate(-90); });
+  $("rotateRightBtn")?.addEventListener("click", ()=>{ if(cropper) cropper.rotate(90); });
+  $("cropSaveBtn")?.addEventListener("click", ()=>{
+    if(!cropper) return;
+    cropper.getCroppedCanvas().toBlob(async (blob)=>{
+      const fd=new FormData(); fd.append("i_info",currentIInfo); fd.append("image",blob,"crop.jpg");
+      try{
+        const d=await fetch("/api/sign/image_replace",{method:"POST",body:fd}).then(r=>r.json());
+        if(d.ok){ alert("크롭 저장 완료"); bootstrap.Modal.getInstance($("cropModal")).hide(); if(currentCompanyId) showSignInfo(currentCompanyId); }
+      }catch(e){ alert("저장 실패: "+e.message); }
+    });
+  });
+
+  // ------- 동/번지 이미지 찾기 -------
+  $("findDongBtn")?.addEventListener("click", async()=>{
+    if(!currentDong||!currentBunji){ alert("동/번지를 먼저 선택하세요."); return; }
+    const cont=$("dongImages"); cont.innerHTML="불러오는 중…";
+    try{
+      const d=await fetchJSON(`/api/sign/static_images?dong=${encodeURIComponent(currentDong)}&bunji=${encodeURIComponent(currentBunji)}`);
+      const imgs=d.images||[]; cont.innerHTML="";
+      if(!imgs.length){ cont.innerHTML="<div class='text-muted'>관련 이미지 없음</div>"; }
+      imgs.forEach(src=>{
+        const el=document.createElement("img");
+        el.src=src; el.className="img-fluid m-2"; el.style.maxWidth="200px"; el.style.cursor="pointer";
+        el.onclick=()=>{ $("modalImage").src=src; bootstrap.Modal.getInstance($("dongModal")).hide(); };
+        cont.appendChild(el);
+      });
+      new bootstrap.Modal($("dongModal")).show();
+    }catch(e){ cont.innerHTML=`<span class='text-danger'>오류: ${e.message}</span>`; }
+  });
+
+  // ------- (신규) 간판/회사 로드뷰 저장 버튼 -------
+  $("saveRoadviewBtn")?.addEventListener("click", async ()=>{
+    if(!lastCompanyDetail || !lastCompanyDetail.lat || !lastCompanyDetail.lng){
+      alert("회사 좌표가 없어 로드뷰를 저장할 수 없습니다."); return;
+    }
+    const fullAddr= lastCompanyDetail.road || [lastCompanyDetail.dong,lastCompanyDetail.bunji,lastCompanyDetail.bunji2].filter(Boolean).join(" ");
+    try{
+      const resp=await tryPost(
+        ["/api/illegal/roadview/save","/api/illegal/roadview/snapshot","/api/illegal/save_roadview","/api/sign/roadview/save"],
+        { lat:lastCompanyDetail.lat, lng:lastCompanyDetail.lng, addr:fullAddr, i_cpn:currentCompanyId, i_info:currentIInfo }
+      );
+      alert("로드뷰 저장 완료" + (resp.path?`\n저장경로: ${resp.path}`:""));
+    }catch(e){ alert("로드뷰 저장 실패: "+e.message); }
+  });
+
+  // 초기 로드
+  loadDongs();
 });
 </script>
 {% endblock scripts %}
