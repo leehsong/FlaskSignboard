@@ -223,30 +223,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ------- 동/번지/회사 목록 로딩 -------
   async function loadDongs(){
-    const el=$("dongList");
+    const el=document.getElementById("dongList");
     el.innerHTML="<div class='list-group-item'>동 목록 불러오는 중...</div>";
     try{
-      let data=await fetchJSON("/api/dongs_with_stats").catch(()=>null);
-      if(!data) data=await fetchJSON("/api/dongs");
+      let data=await fetchJSON("/api/company/dongs_with_stats").catch(()=>null);
+      if(!data) data=await fetchJSON("/api/company/dongs");
       const items=data.dongs || data || [];
       el.innerHTML="";
       items.forEach(x=>{
         const dong=typeof x==="string"?x:x.dong;
         const reviewed=(x.reviewed??"-"), total=(x.total??"-");
         const btn=document.createElement("button");
-        btn.type="button"; btn.className="list-group-item list-group-item-action d-flex justify-content-between";
+        btn.type="button";
+        btn.className="list-group-item list-group-item-action d-flex justify-content-between";
         btn.innerHTML=`<span>${dong}</span><span class="badge bg-light text-dark">${reviewed}/${total}</span>`;
         btn.onclick=()=>{ setActive(el,btn); currentDong=dong; loadBunjis(dong); };
         el.appendChild(btn);
       });
-    }catch(e){ el.innerHTML=`<div class='list-group-item text-danger'>불러오기 실패: ${e.message}</div>`; }
+    }catch(e){
+      el.innerHTML=`<div class='list-group-item text-danger'>불러오기 실패: ${e.message}</div>`;
+    }
   }
 
+  // ------- 번지 목록 -------
   async function loadBunjis(dong){
-    const el=$("bunjiList");
+    const el=document.getElementById("bunjiList");
     el.innerHTML="<div class='list-group-item'>번지 불러오는 중...</div>";
     try{
-      const data=await fetchJSON(`/api/bunjis/${encodeURIComponent(dong)}`);
+      const data=await fetchJSON(`/api/company/bunjis/${encodeURIComponent(dong)}`);
       const bunjis=data.bunjis||[];
       el.innerHTML="";
       bunjis.forEach(b=>{
@@ -255,14 +259,16 @@ document.addEventListener("DOMContentLoaded", () => {
         btn.onclick=()=>{ setActive(el,btn); currentBunji=b; loadCompanies(dong,b); };
         el.appendChild(btn);
       });
-    }catch(e){ el.innerHTML=`<div class='list-group-item text-danger'>불러오기 실패: ${e.message}</div>`; }
+    }catch(e){
+      el.innerHTML=`<div class='list-group-item text-danger'>불러오기 실패: ${e.message}</div>`;
+    }
   }
 
   async function loadCompanies(dong,bunji){
     const el=$("companyList");
     el.innerHTML="<div class='list-group-item'>회사 불러오는 중...</div>";
     try{
-      const data=await fetchJSON(`/api/companies/${encodeURIComponent(dong)}/${encodeURIComponent(bunji)}`);
+      const data=await fetchJSON(`/api/company/companies/${encodeURIComponent(dong)}/${encodeURIComponent(bunji)}`);
       const comps=data.companies||[];
       el.innerHTML="";
       const selected=new Set();
@@ -277,7 +283,7 @@ document.addEventListener("DOMContentLoaded", () => {
         cb.onchange=()=>{
           cb.checked?selected.add(c.id):selected.delete(c.id);
           updateMergeBtn();
-          if(cb.checked){ currentCompanyId=c.id; currentCompanyName=c.name; showCompanyInfo(c.id); showSignInfo(c.id); }
+          if(cb.checked){ currentCompanyId=c.id; currentCompanyName=c.name; showCompanyInfo(c.id, currentDong, c.name); showSignInfo(c.id); }
         };
         row.ondblclick=()=>openCompanyEditor(c.id,c.name);
         el.appendChild(row);
@@ -296,18 +302,32 @@ document.addEventListener("DOMContentLoaded", () => {
     }catch(e){ el.innerHTML=`<div class='list-group-item text-danger'>불러오기 실패: ${e.message}</div>`; }
   }
 
-  // ------- 회사 상세(폴백 + 좌표 보강) & 카드 -------
-  async function fetchCompanyDetail(i_cpn){
-    try{
-      const j=await fetchJSON(`/api/company/detail?i_cpn=${encodeURIComponent(i_cpn)}`);
-      return {company_id:i_cpn, company_name:j.company_name, dong:j.dong, bunji:j.bunji, bunji2:j.bunji2, road:j.t_road, tel:j.t_tel, lat:j.lat||j.y, lng:j.lng||j.x};
-    }catch(_){}
-    try{
-      const j=await fetchJSON(`/api/company/info/${encodeURIComponent(i_cpn)}`);
-      if(j&&j.ok){ const x=j.info||{}; return {company_id:x.company_id||i_cpn, company_name:x.company_name, dong:x.dong, bunji:x.bunji, bunji2:x.bunji2, road:x.road, tel:x.tel, lat:x.lat||x.y, lng:x.lng||x.x}; }
-    }catch(_){}
+  // ------- 회사 상세 (신버전 signboards API 기반) -------
+  async function fetchCompanyDetail(i_cpn, dong, companyName){
+    try {
+      const url = `/api/company/signboards?emd=${encodeURIComponent(dong)}&company=${encodeURIComponent(companyName)}&limit=1&sb_limit=1`;
+      const j = await fetchJSON(url);
+
+      if(j && j.ok && j.results && j.results.length > 0){
+        const comp = j.results[0].company || {};
+        return {
+          company_id: comp.id || i_cpn,
+          company_name: comp.company_name || companyName,
+          dong: comp.dong || dong,
+          bunji: comp.bunji,
+          bunji2: comp.bunji2,
+          road: comp.road || comp.address_road,
+          tel: comp.tel,
+          lat: comp.lat, lng: comp.lon
+        };
+      }
+    } catch(e) {
+      console.error("회사 상세 불러오기 실패:", e);
+    }
     return null;
   }
+
+
   async function ensureCoords(d){
     if(d&&d.lat&&d.lng) return d;
     const q=d.road || [d.dong,d.bunji,d.bunji2].filter(Boolean).join(" ");
@@ -332,35 +352,15 @@ document.addEventListener("DOMContentLoaded", () => {
       <div>연락처: <b>${d.tel || "-"}</b></div>
     </div></div>`;
   }
-  async function showCompanyInfo(i_cpn) {
-    let d = await fetchCompanyDetail(i_cpn);
-    if (!d) {
+
+  async function showCompanyInfo(i_cpn, dong, companyName){
+    let d = await fetchCompanyDetail(i_cpn, dong, companyName);
+    if(!d){
       $("companyInfo").innerHTML = `<div class='card'><div class='card-body text-danger'>회사 조회 실패</div></div>`;
       return;
     }
     d = await ensureCoords(d);
     $("companyInfo").innerHTML = companyCardHTML(d, i_cpn);
-
-    // 회사 로드뷰 저장 버튼: addr은 bunji 우선
-    $("btnSaveRoadviewCompany")?.addEventListener("click", async () => {
-      const addrForSave = d.bunji || d.road || [d.dong, d.bunji, d.bunji2].filter(Boolean).join(" ");
-      if (!(d.lat && d.lng) && !addrForSave) {
-        alert("좌표 또는 주소가 없어 로드뷰를 저장할 수 없습니다.");
-        return;
-      }
-      try {
-        const resp = await tryPost(
-          ["/api/illegal/roadview/save", "/api/illegal/roadview/snapshot", "/api/illegal/save_roadview", "/api/sign/roadview/save"],
-          { lat: d.lat, lng: d.lng, addr: addrForSave, i_cpn: i_cpn }
-        );
-        alert("로드뷰 저장 완료" + (resp.path ? `\n저장경로: ${resp.path}` : ""));
-      } catch (e) {
-        alert("로드뷰 저장 실패: " + e.message);
-      }
-    });
-
-    // 화면의 다른 곳에서도 재사용하려면 이걸 유지
-    window.lastCompanyDetail = d;
   }
 
   // 편집 모달

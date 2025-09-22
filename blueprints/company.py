@@ -1,46 +1,48 @@
 # blueprints/company.py
 from flask import Blueprint, request, jsonify, current_app
 import os, configparser, re
+from utils.db import db_select_all, db_execute 
 from functools import lru_cache
 from typing import List, Tuple, Dict, Optional
 
 company_bp = Blueprint("company", __name__, url_prefix="/api/company")
 
+# --- helpers ---
+def cfg():
+    return current_app.config
+
+def q(sql, params=(), pool="META_POOL"):
+    return db_select_all(sql, params, use=cfg()[pool])
+
+def ex(sql, params=(), pool="META_POOL"):
+    return db_execute(sql, params, use=cfg()[pool])
+
+
 # ------------------------------------------------------------------------------
 # [1] 스키마 컬럼 매핑
-# - 기본 테이블을 t_b_cpn으로 설정
-# - 실제 컬럼명이 다르면 환경변수로 덮어쓰세요.
-# - 일부 컬럼은 자동 추정(옵션) 로직이 보조합니다.
 # ------------------------------------------------------------------------------
 COLMAP = {
     "companies": {
         "table": os.getenv("COMPANY_TABLE", "t_b_cpn"),
-        "id": os.getenv("COMPANY_ID_COL", "id"),                   # PK(없어도 동작은 가능)
-        "name": os.getenv("COMPANY_NAME_COL", "name"),             # 상호/회사명
-        "emd": os.getenv("COMPANY_EMD_COL", "emd"),                # 읍면동/행정동
-        "address": os.getenv("COMPANY_ADDRESS_COL", "address"),    # 단일 주소 컬럼(있으면 활용)
-
-        # 주소 관련 세부 컬럼(있으면 자동으로 병합하여 반환)
-        "road_addr": os.getenv("COMPANY_ROAD_ADDR_COL", None),     # 도로명주소
-        "jibun_addr": os.getenv("COMPANY_JIBUN_ADDR_COL", None),   # 지번주소
-        "addr1": os.getenv("COMPANY_ADDR1_COL", None),             # 주소1
-        "addr2": os.getenv("COMPANY_ADDR2_COL", None),             # 주소2(상세)
-
-        # 행정구역 세분화
+        "id": os.getenv("COMPANY_ID_COL", "id"),
+        "name": os.getenv("COMPANY_NAME_COL", "name"),
+        "emd": os.getenv("COMPANY_EMD_COL", "emd"),
+        "address": os.getenv("COMPANY_ADDRESS_COL", "address"),
+        "road_addr": os.getenv("COMPANY_ROAD_ADDR_COL", None),
+        "jibun_addr": os.getenv("COMPANY_JIBUN_ADDR_COL", None),
+        "addr1": os.getenv("COMPANY_ADDR1_COL", None),
+        "addr2": os.getenv("COMPANY_ADDR2_COL", None),
         "sido": os.getenv("COMPANY_SIDO_COL", None),
         "sigungu": os.getenv("COMPANY_SIGUNGU_COL", None),
-        "dong": os.getenv("COMPANY_DONG_COL", None),  # dong/eup/myeon 등
-
-        # 비즈니스/연락처/좌표
+        "dong": os.getenv("COMPANY_DONG_COL", None),
         "bizno": os.getenv("COMPANY_BIZNO_COL", "bizno"),
         "tel": os.getenv("COMPANY_TEL_COL", None),
         "lat": os.getenv("COMPANY_LAT_COL", None),
         "lon": os.getenv("COMPANY_LON_COL", os.getenv("COMPANY_LNG_COL", None)),
-        "category": os.getenv("COMPANY_CATEGORY_COL", None),       # 업종/분류
+        "category": os.getenv("COMPANY_CATEGORY_COL", None),
         "ceo": os.getenv("COMPANY_CEO_COL", None),
     },
     "signboards": {
-        # 기존 간판 테이블 설정(필요 시 환경변수로 교체)
         "table": os.getenv("SIGNBOARD_TABLE", "signboards"),
         "id": os.getenv("SIGNBOARD_ID_COL", "id"),
         "company_id": os.getenv("SIGNBOARD_COMPANY_ID_COL", "company_id"),
@@ -653,4 +655,98 @@ def api_company_search():
             conn.close()
         except Exception:
             pass
-# -------------------------------------------------------------------------
+
+# ======================
+# 동 목록
+# ======================
+@company_bp.get("/dongs")
+def api_dongs():
+    c = cfg()
+    sql = f"""
+      SELECT DISTINCT {c['COL_DONG']}
+        FROM {c['META_TABLE']}
+       WHERE {c['COL_DONG']} IS NOT NULL AND TRIM({c['COL_DONG']})<>''
+       ORDER BY {c['COL_DONG']}
+    """
+    rows = q(sql)
+    return jsonify({"dongs": [r[0] for r in rows]})
+
+# ======================
+# 동 통계
+# ======================
+@company_bp.get("/dongs_with_stats")
+def api_dongs_with_stats():
+    c = cfg()
+    sql = f"""
+      SELECT dong,
+             COUNT(*) AS total,
+             SUM(CASE WHEN sign_count > 0 THEN 1 ELSE 0 END) AS reviewed
+        FROM (
+            SELECT c.{c['COL_DONG']} AS dong,
+                   c.{c['COL_ID']}   AS company_id,
+                   COUNT(s.{c['COL_ADIDX']}) AS sign_count
+              FROM {c['META_TABLE']} c
+         LEFT JOIN {c['SIGN_TABLE']} s
+                ON s.{c['COL_CP_IDX']} = c.{c['COL_ID']}
+             WHERE c.{c['COL_DONG']} IS NOT NULL AND TRIM(c.{c['COL_DONG']}) <> ''
+             GROUP BY c.{c['COL_DONG']}, c.{c['COL_ID']}
+        ) t
+    GROUP BY dong
+    ORDER BY dong
+    """
+    rows = db_select_all(sql, (), use=c["META_POOL"])
+    out = [{"dong": r[0], "total": int(r[1]), "reviewed": int(r[2])} for r in rows]
+    return jsonify({"dongs": out})
+
+
+# ======================
+# 번지 목록
+# ======================
+@company_bp.get("/bunjis/<path:dong>")
+def api_get_bunjis(dong):
+    c = cfg()
+    dong = (dong or "").strip()
+    if not dong:
+        return jsonify({"bunjis": []})
+
+    # 부분 일치 허용 (예: "부산광역시 사하구 당리동" 에서 "당리동"만 넣어도 매칭)
+    sql = f"""
+      SELECT DISTINCT {c['COL_BUNJI']}
+        FROM {c['META_TABLE']}
+       WHERE {c['COL_DONG']} LIKE %s
+         AND {c['COL_BUNJI']} IS NOT NULL AND TRIM({c['COL_BUNJI']})<>''
+       ORDER BY {c['COL_BUNJI']}
+    """
+    rows = q(sql, (f"%{dong}%",))
+    return jsonify({"bunjis": [r[0] for r in rows]})
+
+
+# ======================
+# 회사 목록
+# ======================
+@company_bp.get("/companies/<path:dong>/<path:bunji>")
+def api_get_companies(dong, bunji):
+    c = cfg()
+    dong, bunji = (dong or "").strip(), (bunji or "").strip()
+    if not dong or not bunji:
+        return jsonify({"companies": []})
+
+    sql = f"""
+        SELECT
+            c.{c['COL_ID']} AS cidx,
+            COALESCE(c.{c['COL_COMP']}, c.{c['COL_COMP_FALLBACK']}) AS company_name,
+            COALESCE(c.{c['COL_BUNJI2']}, '') AS addr2,
+            COUNT(s.{c['COL_ADIDX']}) AS ad_count
+          FROM {c['META_TABLE']} c
+     LEFT JOIN {c['SIGN_TABLE']} s
+            ON s.{c['COL_CP_IDX']} = c.{c['COL_ID']}
+         WHERE c.{c['COL_DONG']} LIKE %s AND c.{c['COL_BUNJI']}=%s
+         GROUP BY
+            c.{c['COL_ID']},
+            COALESCE(c.{c['COL_COMP']}, c.{c['COL_COMP_FALLBACK']}),
+            COALESCE(c.{c['COL_BUNJI2']}, '')
+         ORDER BY 2, 1
+    """
+    rows = q(sql, (f"%{dong}%", bunji))
+    comps = [{"id": str(r[0]), "name": r[1], "addr2": r[2], "ad_count": int(r[3])} for r in rows]
+    return jsonify({"companies": comps})

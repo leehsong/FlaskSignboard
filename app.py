@@ -1,5 +1,5 @@
 import os
-from flask import Flask, jsonify, request, redirect, url_for, session
+from flask import Flask, jsonify, request
 from config import Config
 from extensions import init_extensions  # DB 풀/로거 등을 셋업하는 기존 함수
 
@@ -28,6 +28,7 @@ def register_error_handlers(app: Flask) -> None:
             return _json_err(500, "server error")
         return e
 
+
 def create_app() -> Flask:
     app = Flask(
         __name__,
@@ -43,12 +44,6 @@ def create_app() -> Flask:
     #    app.config["META_POOL"], app.config["IMG_POOL"], app.config["VER_POOL"]
     init_extensions(app)
 
-    @app.route("/")
-    def root():
-        if "reviewer_name" not in session:
-            return redirect(url_for("core.start"))
-        return redirect(url_for("core.home"))
-
     # 3) 블루프린트 등록
     from blueprints.core import core_bp
     from blueprints.company import company_bp
@@ -59,13 +54,12 @@ def create_app() -> Flask:
     from blueprints.mapurl import mapurl_bp
 
     app.register_blueprint(core_bp)                           # 화면 라우트(start/home 등)
-    app.register_blueprint(company_bp, url_prefix="/api")     # /api/bunjis/..., /api/companies/...
+    app.register_blueprint(company_bp, url_prefix="/api/company")     # /api/bunjis/..., /api/companies/...
     app.register_blueprint(sign_bp, url_prefix="/api/sign")
     app.register_blueprint(illegal_bp, url_prefix="/api/illegal")
     app.register_blueprint(review_bp, url_prefix="/api/review")
     app.register_blueprint(upload_bp, url_prefix="/upload")
     app.register_blueprint(mapurl_bp, url_prefix="/api/map")
-
 
     # 4) 에러 핸들러
     register_error_handlers(app)
