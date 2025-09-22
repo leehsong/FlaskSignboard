@@ -1,0 +1,71 @@
+/* 민트 톤 변수 */
+:root {
+  --mint: #1abc9c;
+  --mint-light: #e7fbf7;
+  --mint-dark: #148f7c;
+}
+
+/* 카드 둥근 모서리 + 심플 스타일 */
+.card-custom {
+  border: 1px solid var(--mint); /* 예전보다 얇게 */
+  border-radius: 12px; /* 둥근 정도 조절 */
+  background-color: white;
+  /* 그림자 약하게 */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+}
+
+.card-custom:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.text-mint {
+  color: var(--mint) !important;
+}
+
+.btn-outline-mint {
+  border: 1px solid var(--mint) !important;
+  color: var(--mint) !important;
+  background-color: transparent;
+}
+
+.btn-outline-mint:hover,
+.btn-outline-mint:focus {
+  background-color: var(--mint) !important;
+  color: white !important;
+}
+
+.btn-mint {
+  background-color: var(--mint) !important;
+  color: white !important;
+}
+
+.btn-mint:hover {
+  background-color: var(--mint-dark) !important;
+  color: white !important;
+}
+
+/* styles.css 추가 혹은 보완 */
+.list-group .list-group-item {
+  cursor: pointer;
+}
+.list-group .list-group-item.active {
+  background-color: var(--mint-light);
+  border-color: var(--mint);
+}
+#companyInfo .card, #signInfo .card {
+  margin-bottom: 1rem;
+}
+
+.no-image {
+  width: 240px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #aaa;
+  font-size: 18px;
+  color: #666;
+  background-color: #f9f9f9;
+}
