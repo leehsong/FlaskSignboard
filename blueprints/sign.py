@@ -79,7 +79,9 @@ def api_sign_detail(ad_id):
       SELECT s.{c['COL_ADIDX']} AS i_info,
              s.{c['COL_SBD']}   AS type,
              s.{c['COL_SBC']}   AS category,
-             s.q_img_h, s.q_img_w,
+             s.c_prt,                 -- ✅ 규격(표기)
+             s.q_l, s.q_s, s.q_w,     -- (선택) 물리 치수
+             s.q_img_h, s.q_img_w,    -- 이미지 픽셀
              c.{c['COL_COMP']}  AS company_name
         FROM {c['SIGN_TABLE']} s
    LEFT JOIN {c['META_TABLE']} c
@@ -90,15 +92,17 @@ def api_sign_detail(ad_id):
     rows = db_select(sql, (ad_id,), pool="IMG_POOL")
     if not rows:
         return jsonify({"ok": False, "msg": "not found"}), 404
-    i_info, typ, cat, h, w, comp = rows[0]
+
+    i_info, typ, cat, cprt, ql, qs, qw, qh, qw2, comp = rows[0]
     return jsonify({
         "ok": True,
         "data": {
             "i_info": str(i_info),
             "type": typ,
             "category": cat,
-            "width": w,
-            "height": h,
+            "c_prt": cprt,        # ✅ 프론트가 바로 쓸 수 있게
+            "q_l": ql, "q_s": qs, "q_w": qw,
+            "width_px": qw2, "height_px": qh,
             "company_name": comp
         }
     })

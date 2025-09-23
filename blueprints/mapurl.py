@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from urllib.parse import quote_plus
 from utils.db import db_select_all
 from utils.geocode import geocode_kakao  # kakao_geocode 대신 geocode_kakao
-mapurl_bp = Blueprint("mapurl", __name__)
+mapurl_bp = Blueprint("mapurl", __name__, url_prefix="/api/geocode")
 
 @mapurl_bp.route("/roadview_url")
 def api_company_roadview_url():
@@ -66,3 +66,14 @@ def api_company_roadview_url():
         # 좌표 못 찾으면 네이버 검색 URL로 폴백
         url = f"https://map.naver.com/v5/search/{quote_plus(addr)}"
         return jsonify({"ok": True, "url": url, "addr": addr, "lng": None, "lat": None})
+
+@mapurl_bp.get("/sync")
+def api_geocode_sync():
+    addr = (request.args.get("addr") or "").strip()
+    if not addr:
+        return jsonify({"ok": False, "msg": "addr required"}), 400
+    try:
+        result = kakao_geocode(addr)
+        return jsonify({"ok": True, "lat": result["lat"], "lng": result["lng"]})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500

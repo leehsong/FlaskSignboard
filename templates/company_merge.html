@@ -8,7 +8,7 @@
     <!-- 1단: 동 선택 -->
     <div class="col-lg-3">
       <h5>🏢 동 목록</h5>
-      <div id="dongList" class="list-group custom-list" style="max-height:300px; overflow-y:auto;">
+      <div id="dongList" class="list-group custom-list" style="max-height:340px; overflow-y:auto;">
         <div class="list-group-item">동 목록 불러오는 중...</div>
       </div>
     </div>
@@ -16,7 +16,7 @@
     <!-- 2단: 번지 선택 -->
     <div class="col-lg-3">
       <h5>🏠 번지 목록</h5>
-      <div id="bunjiList" class="list-group custom-list" style="max-height:300px; overflow-y:auto;">
+      <div id="bunjiList" class="list-group custom-list" style="max-height:340px; overflow-y:auto;">
         <div class="list-group-item">동을 먼저 선택하세요.</div>
       </div>
     </div>
@@ -29,12 +29,13 @@
       </div>
 
       <h6 class="mt-3">회사 정보</h6>
-      <div id="companyInfo" style="max-height:220px; overflow-y:auto;">
+      <div id="companyInfo" style="max-height:300px; overflow-y:auto;">
         <div class="card"><div class="card-body"><p>회사 선택 시 정보가 표시됩니다.</p></div></div>
       </div>
 
-      <div class="mt-2">
-        <button id="mergeBtn" class="btn btn-mint w-100" disabled>선택된 회사 병합하기</button>
+      <div class="input-group mb-2">
+        <input type="text" id="canonicalName" class="form-control" placeholder="대표 회사명 (예: ○○상사)">
+        <button id="mergeBtn" class="btn btn-mint" disabled>선택된 회사 병합하기</button>
       </div>
     </div>
 
@@ -289,44 +290,61 @@ document.addEventListener("DOMContentLoaded", () => {
         el.appendChild(row);
       });
 
-      $("mergeBtn").onclick=async()=>{
-        if(selected.size<2) return;
-        const canonical=prompt("대표 회사명을 입력하세요(병합 후 회사명):", currentCompanyName||"");
-        if(!canonical) return;
-        try{
-          const res=await fetch("/api/merge_companies",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({selected_ids:[...selected], canonical_name:canonical})}).then(r=>r.json());
-          if(res.ok){ alert(`병합 완료 (대표 i_cpn=${res.canonical_id})`); loadCompanies(currentDong,currentBunji); showSignInfo(res.canonical_id); }
-          else alert("병합 실패: "+(res.msg||""));
-        }catch(e){ alert("병합 오류: "+e.message); }
+      $("mergeBtn").onclick = async () => {
+        if (selected.size < 2) {
+          alert("두 개 이상 회사를 선택하세요.");
+          return;
+        }
+        const canonical = $("canonicalName").value.trim();
+        if (!canonical) {
+          alert("대표 회사명을 입력하세요.");
+          return;
+        }
+
+        try {
+          const res = await fetch("/api/company/merge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              selected_ids: [...selected],
+              canonical_name: canonical
+            })
+          }).then(r => r.json());
+
+          if (res.ok) {
+            alert(`병합 완료 (대표 i_cpn=${res.canonical_id})`);
+            $("canonicalName").value = "";  // 입력창 초기화
+            loadCompanies(currentDong, currentBunji);
+            showSignInfo(res.canonical_id);
+          } else {
+            alert("병합 실패: " + (res.msg || ""));
+          }
+        } catch (e) {
+          alert("병합 오류: " + e.message);
+        }
       };
     }catch(e){ el.innerHTML=`<div class='list-group-item text-danger'>불러오기 실패: ${e.message}</div>`; }
   }
 
-  // ------- 회사 상세 (신버전 signboards API 기반) -------
-  async function fetchCompanyDetail(i_cpn, dong, companyName){
-    try {
-      const url = `/api/company/signboards?emd=${encodeURIComponent(dong)}&company=${encodeURIComponent(companyName)}&limit=1&sb_limit=1`;
-      const j = await fetchJSON(url);
-
-      if(j && j.ok && j.results && j.results.length > 0){
-        const comp = j.results[0].company || {};
-        return {
-          company_id: comp.id || i_cpn,
-          company_name: comp.company_name || companyName,
-          dong: comp.dong || dong,
-          bunji: comp.bunji,
-          bunji2: comp.bunji2,
-          road: comp.road || comp.address_road,
-          tel: comp.tel,
-          lat: comp.lat, lng: comp.lon
-        };
-      }
-    } catch(e) {
-      console.error("회사 상세 불러오기 실패:", e);
+  async function fetchCompanyDetail(i_cpn){
+  try {
+    const j = await fetchJSON(`/api/company/info/${encodeURIComponent(i_cpn)}`);
+    if(j && j.ok){
+      const x = j.info || {};
+      return {
+        company_id: x.company_id || i_cpn,
+        company_name: x.company_name,
+        dong: x.dong,
+        bunji: x.bunji,
+        bunji2: x.bunji2,
+      };
     }
-    return null;
+  } catch(e) {
+    console.error("회사 상세 조회 실패:", e);
   }
-
+  return null;
+}
+  
 
   async function ensureCoords(d){
     if(d&&d.lat&&d.lng) return d;
@@ -383,11 +401,28 @@ document.addEventListener("DOMContentLoaded", () => {
     else alert("저장 실패");
   });
   $("btnCompDelete")?.addEventListener("click", async()=>{
-    const i_cpn=$("m_i_cpn").value;
-    if(!confirm("정말 삭제하시겠습니까?")) return;
-    const r=await fetch("/api/company/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({i_cpn})}).then(r=>r.json()).catch(()=>null);
-    if(r&&r.ok){ alert("삭제 완료"); bootstrap.Modal.getInstance($("companyModal")).hide(); if(currentDong&&currentBunji) loadCompanies(currentDong,currentBunji); }
-    else alert("삭제 실패");
+    const i_cpn = ($("m_i_cpn").value || "").trim();
+    if(!i_cpn){ alert("회사 ID가 비어 있습니다."); return; }
+
+    const doForce = confirm(
+      `회사 ${i_cpn} 를 삭제합니다.\n연결된 간판이 있으면 함께 삭제하려면 '확인'을 누르세요.`
+    );
+
+    const payload = { i_cpn: String(i_cpn), force: !!doForce }; // ✅ 문자열 + force
+    const res = await fetch("/api/company/delete", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify(payload)
+    }).then(r=>r.json()).catch(()=>null);
+
+    if(res && res.ok){
+      alert("삭제 완료");
+      bootstrap.Modal.getInstance($("companyModal"))?.hide();
+      if(currentDong && currentBunji) loadCompanies(currentDong, currentBunji);
+      $("signInfo").innerHTML = `<div class="text-muted">회사 선택 시 간판 정보가 표시됩니다.</div>`;
+    }else{
+      alert("삭제 실패: " + (res?.msg || "원인 미상 — 서버 로그를 확인하세요."));
+    }
   });
   window.syncAddress = async (type)=>{
     const query=(type==="road")?$("m_t_road").value:$("m_t_add_num").value;

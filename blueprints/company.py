@@ -19,40 +19,37 @@ def ex(sql, params=(), pool="META_POOL"):
 
 
 # ------------------------------------------------------------------------------
-# [1] 스키마 컬럼 매핑
+# [2] COLMAP 설정 (DB 컬럼 매핑)
 # ------------------------------------------------------------------------------
 COLMAP = {
     "companies": {
         "table": os.getenv("COMPANY_TABLE", "t_b_cpn"),
-        "id": os.getenv("COMPANY_ID_COL", "id"),
-        "name": os.getenv("COMPANY_NAME_COL", "name"),
-        "emd": os.getenv("COMPANY_EMD_COL", "emd"),
-        "address": os.getenv("COMPANY_ADDRESS_COL", "address"),
-        "road_addr": os.getenv("COMPANY_ROAD_ADDR_COL", None),
-        "jibun_addr": os.getenv("COMPANY_JIBUN_ADDR_COL", None),
+        "id": os.getenv("COMPANY_ID_COL", "c_id"),          # 회사 ID
+        "name": os.getenv("COMPANY_NAME_COL", "t_cpn"),     # 회사명
+        "emd": os.getenv("COMPANY_EMD_COL", "t_add_3"),     # 읍면동
+        "address": os.getenv("COMPANY_ADDRESS_COL", None),
+
+        # 주소 관련 (있으면 자동 병합)
+        "road_addr": os.getenv("COMPANY_ROAD_ADDR_COL", "t_add_road"),
+        "jibun_addr": os.getenv("COMPANY_JIBUN_ADDR_COL", "t_add_num"),
         "addr1": os.getenv("COMPANY_ADDR1_COL", None),
-        "addr2": os.getenv("COMPANY_ADDR2_COL", None),
-        "sido": os.getenv("COMPANY_SIDO_COL", None),
-        "sigungu": os.getenv("COMPANY_SIGUNGU_COL", None),
-        "dong": os.getenv("COMPANY_DONG_COL", None),
-        "bizno": os.getenv("COMPANY_BIZNO_COL", "bizno"),
+        "addr2": os.getenv("COMPANY_ADDR2_COL", "t_add_2"),
+
+        # 기타
         "tel": os.getenv("COMPANY_TEL_COL", None),
         "lat": os.getenv("COMPANY_LAT_COL", None),
-        "lon": os.getenv("COMPANY_LON_COL", os.getenv("COMPANY_LNG_COL", None)),
-        "category": os.getenv("COMPANY_CATEGORY_COL", None),
-        "ceo": os.getenv("COMPANY_CEO_COL", None),
+        "lon": os.getenv("COMPANY_LON_COL", None),
     },
     "signboards": {
-        "table": os.getenv("SIGNBOARD_TABLE", "signboards"),
-        "id": os.getenv("SIGNBOARD_ID_COL", "id"),
-        "company_id": os.getenv("SIGNBOARD_COMPANY_ID_COL", "company_id"),
-        "company_name": os.getenv("SIGNBOARD_COMPANY_NAME_COL", "company_name"),
-        "emd": os.getenv("SIGNBOARD_EMD_COL", "emd"),
-        "address": os.getenv("SIGNBOARD_ADDRESS_COL", "address"),
-        "bizno": os.getenv("SIGNBOARD_BIZNO_COL", "bizno"),
-        "image_url": os.getenv("SIGNBOARD_IMG_COL", "image_url"),
-        "status": os.getenv("SIGNBOARD_STATUS_COL", "status"),
-        "updated_at": os.getenv("SIGNBOARD_UPDATED_AT_COL", "updated_at"),
+        "table": os.getenv("SIGNBOARD_TABLE", "t_sb_info"),
+        "id": os.getenv("SIGNBOARD_ID_COL", "i_info"),
+        "company_id": os.getenv("SIGNBOARD_COMPANY_ID_COL", "i_cpn"),
+        "company_name": os.getenv("SIGNBOARD_COMPANY_NAME_COL", "t_cpn"),
+        "emd": os.getenv("SIGNBOARD_EMD_COL", "t_add_3"),
+        "address": os.getenv("SIGNBOARD_ADDRESS_COL", "t_add_num"),
+        "bizno": os.getenv("SIGNBOARD_BIZNO_COL", None),
+        "status": os.getenv("SIGNBOARD_STATUS_COL", None),
+        "updated_at": os.getenv("SIGNBOARD_UPDATED_AT_COL", None),
     },
 }
 
@@ -437,12 +434,6 @@ def _find_signboards_for_company(conn, dialect: str, company_row: dict, emd: str
 # ------------------------------------------------------------------------------
 @company_bp.get("/signboards")
 def api_company_signboards():
-    """
-    GET /api/company/signboards?emd=학장동&company=레이어 와이즈
-        &fuzzy=1&threshold=68&limit=5&sb_limit=20&return_scores=1
-    - 회사는 t_b_cpn(또는 COMPANY_TABLE)에서 조회
-    - 응답 company 객체에 주소/연락처/좌표 등 정규화 필드를 추가
-    """
     emd = (request.args.get("emd") or "").strip()
     company = (request.args.get("company") or "").strip()
     topk = request.args.get("limit", type=int) or 10
@@ -456,10 +447,10 @@ def api_company_signboards():
     if not emd or not company:
         return jsonify({"ok": False, "error": "필수 파라미터 누락: emd, company"}), 400
 
-    try:
-        conn, dialect = _get_connection()
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"DB 연결 실패: {e}"}), 500
+    # ✅ 기존 _get_connection() 대신 IMG_POOL 사용
+    img_pool = current_app.config["IMG_POOL"]
+    conn = img_pool.getconn()
+    dialect = "postgresql"   # image_db가 postgres라면 이렇게 고정
 
     try:
         companies = _find_companies(
@@ -476,22 +467,14 @@ def api_company_signboards():
         cm = COLMAP["companies"]
         results = []
         for comp in companies:
-            # 주소/메타 정규화 추가
             view = _compose_address_view(cm, comp)
-
             signboards = _find_signboards_for_company(conn, dialect, comp, emd, limit=sbk)
 
             def _sanitize(d: dict):
-                out = {}
-                for k, v in d.items():
-                    if hasattr(v, "isoformat"):
-                        out[k] = v.isoformat()
-                    else:
-                        out[k] = v
-                return out
+                return {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in d.items()}
 
             comp_aug = _sanitize(comp)
-            comp_aug.update(view)  # 정규화 필드를 company 객체에 합침
+            comp_aug.update(view)
 
             results.append({
                 "company": comp_aug,
@@ -499,29 +482,15 @@ def api_company_signboards():
                 "signboard_count": len(signboards),
             })
 
-        payload = {
+        return jsonify({
             "ok": True,
-            "query": {
-                "emd": emd,
-                "company": company,
-                "fuzzy": fuzzy,
-                "threshold": threshold,
-                "pool": pool,
-            },
+            "query": {"emd": emd, "company": company, "fuzzy": fuzzy, "threshold": threshold, "pool": pool},
             "count": len(results),
             "results": results,
-        }
-        try:
-            current_app.config.setdefault("JSON_AS_ASCII", False)
-        except Exception:
-            pass
-
-        return jsonify(payload), 200
+        }), 200
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        img_pool.putconn(conn)
+
 # ---[ NEW ]---------------------------------------------------------------
 # /api/company/ : 읍면동 + 회사명으로 회사 ID 및 관련 정보 검색
 @company_bp.get("/")
@@ -677,6 +646,14 @@ def api_dongs():
 @company_bp.get("/dongs_with_stats")
 def api_dongs_with_stats():
     c = cfg()
+    # 🔎 디버깅: 현재 config에 들어간 값 확인
+    print("=== DEBUG: COL_ID 매핑 확인 ===")
+    print("COL_ID =", c.get("COL_ID"))
+    print("COL_CP_IDX =", c.get("COL_CP_IDX"))
+    print("META_TABLE =", c.get("META_TABLE"))
+    print("SIGN_TABLE =", c.get("SIGN_TABLE"))
+
+
     sql = f"""
       SELECT dong,
              COUNT(*) AS total,
@@ -687,17 +664,18 @@ def api_dongs_with_stats():
                    COUNT(s.{c['COL_ADIDX']}) AS sign_count
               FROM {c['META_TABLE']} c
          LEFT JOIN {c['SIGN_TABLE']} s
-                ON s.{c['COL_CP_IDX']} = c.{c['COL_ID']}
-             WHERE c.{c['COL_DONG']} IS NOT NULL AND TRIM(c.{c['COL_DONG']}) <> ''
+                ON s.{c['COL_CP_IDX']} = c.{c['COL_ID']}  -- ✅ i_cpn = c_id
+             WHERE c.{c['COL_DONG']} IS NOT NULL
+               AND TRIM(c.{c['COL_DONG']}) <> ''
              GROUP BY c.{c['COL_DONG']}, c.{c['COL_ID']}
         ) t
     GROUP BY dong
     ORDER BY dong
     """
     rows = db_select_all(sql, (), use=c["META_POOL"])
-    out = [{"dong": r[0], "total": int(r[1]), "reviewed": int(r[2])} for r in rows]
-    return jsonify({"dongs": out})
-
+    return jsonify({
+        "dongs": [{"dong": r[0], "total": int(r[1]), "reviewed": int(r[2])} for r in rows]
+    })
 
 # ======================
 # 번지 목록
@@ -750,3 +728,132 @@ def api_get_companies(dong, bunji):
     rows = q(sql, (f"%{dong}%", bunji))
     comps = [{"id": str(r[0]), "name": r[1], "addr2": r[2], "ad_count": int(r[3])} for r in rows]
     return jsonify({"companies": comps})
+
+# ======================
+# 회사 상세 (/api/company/info/<company_id>)
+# ======================
+@company_bp.get("/info/<company_id>")
+def api_company_info(company_id):
+    c = cfg()
+    sql = f"""
+      SELECT {c['COL_ID']},
+             {c['COL_COMP']},
+             {c['COL_DONG']},
+             {c['COL_BUNJI']},
+             {c['COL_BUNJI2']},
+             COALESCE(t_add_road, '') AS road,
+             COALESCE(t_tel, '') AS tel
+        FROM {c['META_TABLE']}
+       WHERE {c['COL_ID']}=%s
+       LIMIT 1
+    """
+    rows = q(sql, (company_id,))
+    if not rows:
+        return jsonify({"ok": False, "msg": "not found"}), 404
+
+    cid, name, dong, bunji, bunji2, road, tel = rows[0]
+    return jsonify({"ok": True, "info": {
+        "company_id": str(cid),
+        "company_name": name,
+        "dong": dong,
+        "bunji": bunji,
+        "bunji2": bunji2,
+        "road": road,
+        "tel": tel
+    }})
+
+
+# ======================
+# 간판 목록 (/api/company/signs/<company_id>)
+# ======================
+def api_sign_info(company_id):
+    c = cfg()
+    sql = f"""
+      SELECT {c['COL_ADIDX']} AS i_info,
+             {c['COL_SBF']}   AS i_sc_sbf,
+             {c['COL_SBD']}   AS i_sc_sbd,
+             {c['COL_SBC']}   AS i_sc_sbc,
+             s.c_prt
+        FROM {c['SIGN_TABLE']} s
+       WHERE s.{c['COL_CP_IDX']}=%s
+       ORDER BY {c['COL_ADIDX']}
+    """
+    rows = db_select_all(sql, (company_id,), use=c["IMG_POOL"])
+    signs = []
+    for r in rows:
+        i_info, sbf, sbd, sbc, cprt = r
+        signs.append({
+            "i_info": str(i_info),
+            "i_sc_sbf": sbf,
+            "i_sc_sbd": sbd,
+            "i_sc_sbc": sbc,
+            "c_prt": cprt,
+            "thumb": url_for("sign.api_image_blob", ad_id=str(i_info)) + f"?v={int(time.time())}"
+        })
+    return jsonify({"ok": True, "signs": signs})
+
+@company_bp.post("/delete")
+def api_company_delete():
+    """
+    payload: { "i_cpn":"...", "force": false }
+    - 간판 존재 시 기본 거부
+    - force=true면 간판 먼저 삭제 후 회사 삭제
+    """
+    c = cfg()
+    data  = request.get_json(force=False, silent=True) or {}
+    i_cpn = str(data.get("i_cpn") or "").strip()          # ✅ 항상 문자열
+    force = bool(data.get("force", False))
+    if not i_cpn:
+        return jsonify({"ok": False, "msg":"i_cpn required"}), 400
+    try:
+        # 1) 연결 간판 수 확인
+        rows = db_select_all(
+            f"SELECT COUNT(*) FROM {c['SIGN_TABLE']} WHERE {c['COL_CP_IDX']}=%s",
+            (i_cpn,), use=c["IMG_POOL"]
+        )
+        cnt = int(rows[0][0]) if rows else 0
+        if cnt > 0 and not force:
+            return jsonify({"ok": False,
+                            "msg": f"연결된 간판 {cnt}건이 있어 삭제 불가 (force=true로 재요청하세요)"}), 400
+
+        # 2) 강제 삭제면 간판부터 삭제
+        if cnt > 0 and force:
+            db_execute(
+                f"DELETE FROM {c['SIGN_TABLE']} WHERE {c['COL_CP_IDX']}=%s",
+                (i_cpn,), use=c["IMG_POOL"]
+            )
+
+        # 3) 회사 삭제
+        db_execute(
+            f"DELETE FROM {c['META_TABLE']} WHERE {c['COL_ID']}=%s",
+            (i_cpn,), use=c["META_POOL"]
+        )
+        return jsonify({"ok": True})
+    except Exception as e:
+        # 서버 로그로 정확한 원인 확인에 도움
+        print("[/api/company/delete] ERROR:", e)
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+# 회사 병합 (/api/merge)
+@company_bp.post("/merge")
+def api_merge_companies():
+    c = cfg()
+    data = request.get_json(force=True, silent=True) or {}
+    ids = [str(x).strip() for x in (data.get("selected_ids") or []) if str(x).strip()]
+    canonical = (data.get("canonical_name") or "").strip()
+
+    if len(ids) < 2 or not canonical:
+        return jsonify({"ok": False, "msg": "selected_ids(2+)와 canonical_name 필요"}), 400
+
+    canonical_id = min(ids)
+    ph = ",".join(["%s"] * len(ids))
+    ex(f"UPDATE {c['META_TABLE']} SET {c['COL_COMP']}=%s WHERE {c['COL_ID']} IN ({ph})",
+       [canonical] + ids, pool="META_POOL")
+
+    targets = [x for x in ids if x != canonical_id]
+    if targets:
+        ph2 = ",".join(["%s"] * len(targets))
+        ex(f"UPDATE {c['SIGN_TABLE']} SET {c['COL_CP_IDX']}=%s WHERE {c['COL_CP_IDX']} IN ({ph2})",
+           [canonical_id] + targets, pool="IMG_POOL")
+
+    return jsonify({"ok": True, "canonical_id": canonical_id, "merged_ids": targets})
