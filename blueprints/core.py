@@ -28,9 +28,15 @@ def home():
 def company_merge():
     return render_template("company_merge.html")
 
-@core_bp.route("/upload_records")
-def upload_records():
-    return render_template("upload_records.html")
+@core_bp.route("/review-sheet")
+def review_sheet_page():
+    if "reviewer_name" not in session:
+        return redirect(url_for("core.start"))  # 기존 시작 페이지 활용
+    return render_template("review_sheet.html")
+
+#@core_bp.route("/upload_records")
+#def upload_records():
+#    return render_template("upload_records.html")
 
 @core_bp.route("/sign_edit")
 def sign_edit():
