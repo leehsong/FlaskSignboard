@@ -40,11 +40,16 @@
         <h6>네이버 거리뷰/지도</h6>
         <iframe id="roadviewFrame"
                 width="100%"
-                height="600"
+                height="400"
                 frameborder="0"
                 style="border:0;"
                 allowfullscreen>
         </iframe>
+        <button id="btnOpenRoadviewNew"
+                class="btn btn-sm btn-outline-dark mt-2"
+                style="display:none;">
+            새 창에서 로드뷰 열기
+        </button>
       </div>
     </div>
 
@@ -72,7 +77,7 @@
           <!-- 버튼들 한 줄 배치 -->
           <div class="d-flex gap-2">
             <button id="btnUpdateAddr" class="btn btn-sm btn-outline-warning">주소 변경</button>
-            <button id="btnUpdateRoadview" class="btn btn-sm btn-outline-success">거리뷰 URL 변경</button>
+            <button id="btnUpdateRoadview" class="btn btn-sm btn-outline-success">거리뷰 URL 저장</button>
             <button id="btnSaveReview" class="btn btn-sm btn-outline-primary">검수 상태 저장</button>
           </div>
         </div>
@@ -114,20 +119,41 @@
       <div class="modal-body">
         <form id="signEditForm">
           <input type="hidden" id="edit_i_info">
-          <div class="mb-2"><label>종류</label><input id="edit_type" class="form-control"></div>
-          <div class="mb-2"><label>분류</label><input id="edit_category" class="form-control"></div>
-          <div class="mb-2"><label>규격(c_prn)</label><input id="edit_c_prn" class="form-control"></div>
-          <div class="mb-2"><label>가로</label><input id="edit_width" class="form-control"></div>
-          <div class="mb-2"><label>세로</label><input id="edit_height" class="form-control"></div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">종류(sc_sbd)</label>
+              <input id="edit_type" class="form-control form-control-sm" placeholder="예: SBD3">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">분류(sc_sbc)</label>
+              <input id="edit_category" class="form-control form-control-sm" placeholder="예: SBC01">
+            </div>
+          </div>
+          <div class="row g-2 mt-1">
+            <div class="col-md-4">
+              <label class="form-label">가로(q_img_w)</label>
+              <input id="edit_width" class="form-control form-control-sm" type="number" step="0.01">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">세로(q_img_h)</label>
+              <input id="edit_height" class="form-control form-control-sm" type="number" step="0.01">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">규격(c_prn)</label>
+              <input id="edit_c_prn" class="form-control form-control-sm" placeholder="예: 1200x800">
+            </div>
+          </div>
         </form>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-success" onclick="saveSignEdit()">저장</button>
-        <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button class="btn btn-success btn-sm" id="btnSaveSignEdit">저장</button>
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
       </div>
     </div>
   </div>
 </div>
+<input type="file" id="fileReplace" accept="image/*" style="display:none;">
+
 
 <script>
 (async function(){
@@ -141,7 +167,7 @@
   async function jget(url){const r=await fetch(url);return r.json();}
   async function jpost(url,body){const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});return r.json();}
 
-  // 동 목록 + 검수 진행률
+  // 동 목록
   async function loadDongs(){
     const dongs=await jget(`${ILLEGAL_BASE}/dongs`);
     const container=document.getElementById("dongListView"); container.innerHTML="";
@@ -180,19 +206,30 @@
     document.getElementById("cpnName").value=name;
 
     try {
-      const d=await jget(`${MAP_BASE}/roadview_url?i_cpn=${i_cpn}`);
-      if(d.ok && d.url){
-        document.getElementById("roadviewFrame").src=d.url;
-      } else {
-        document.getElementById("roadviewFrame").src="";
-      }
-    }catch(e){ console.warn("로드뷰 불러오기 실패:", e); }
+    const d = await jget(`/api/map/roadview_url?i_cpn=${i_cpn}`);
+    if(d.ok && d.url){
+        document.getElementById("btnOpenRoadviewNew").style.display="inline-block";
+        document.getElementById("btnOpenRoadviewNew").onclick=()=>openRoadviewNewTab(d.url);
+    } else {
+        document.getElementById("btnOpenRoadviewNew").style.display="none";
+    }
+    }catch(e){
+    console.warn("로드뷰 URL 로딩 실패:", e);
+      document.getElementById("btnOpenRoadviewNew").style.display="inline-block";
+      document.getElementById("btnOpenRoadviewNew").onclick=()=>openRoadviewNewTab(`https://map.naver.com/v5/search/${encodeURIComponent(state.company.company_name)}`);
+    }
+
 
     const signs=await jget(`${ILLEGAL_BASE}/all_signs?i_cpn=${i_cpn}`);
     renderSigns(signs.signs||[]);
   };
 
-  // 주소 변경 버튼 → 모달
+  function openRoadviewNewTab(url){
+    if(!url) return alert("로드뷰 URL이 없습니다.");
+    window.open(url,"_blank");
+  }
+
+  // 주소 변경
   document.getElementById("btnUpdateAddr").onclick=()=>{
     if(!state.company) return alert("회사를 먼저 선택하세요");
     document.getElementById("m_cpnName").value=document.getElementById("cpnName").value;
@@ -200,7 +237,6 @@
     new bootstrap.Modal(document.getElementById("addrModal")).show();
   };
 
-  // 주소 저장
   document.getElementById("btnSaveAddr").onclick=async()=>{
     const fields={t_cpn:document.getElementById("m_cpnName").value,
                   t_road:document.getElementById("m_cpnAddr").value,
@@ -210,12 +246,12 @@
     else alert("실패: "+res.msg);
   };
 
-  // 거리뷰 URL 저장
+  // 로드뷰 URL 저장
   document.getElementById("btnUpdateRoadview").onclick=async()=>{
     if(!state.company) return alert("회사를 먼저 선택하세요");
     const url=document.getElementById("roadviewFrame").src;
     if(!url) return alert("iframe에 로드뷰가 없습니다.");
-    const res=await jpost(`${COMPANY_BASE}/update`,{i_cpn:state.company.i_cpn,fields:{navrv_url:url}});
+    const res=await jpost(`${MAP_BASE}/roadview_save`,{i_cpn:state.company.i_cpn, navrv_url:url});
     alert(res.ok?"로드뷰 URL 저장됨":"실패: "+res.msg);
   };
 
@@ -230,16 +266,145 @@
     alert(res.ok?"검수 상태 저장 완료":"실패: "+res.msg);
   };
 
-  // 간판 목록 렌더링
+  // 간판 렌더링
   function renderSigns(signs){
     const list=document.getElementById("signList"); list.innerHTML="";
     signs.forEach(s=>{
-      const col=document.createElement("div");
-      col.className="col sign-card";
-      col.innerHTML=`<img src="/api/sign/image_blob/${s.i_info}" onerror="this.src='';">`;
-      list.appendChild(col);
+        const col=document.createElement("div");
+        col.className="col sign-card";
+        col.innerHTML=`
+        <img src="/api/sign/image_blob/${s.i_info}"
+            ondblclick="openImageReplace('${s.i_info}')"
+            onerror="this.src='';">
+        <div class="overlay-btns">
+            <button class="btn btn-sm btn-danger" onclick="deleteSign('${s.i_info}')">삭제</button>
+            <button class="btn btn-sm btn-warning" onclick="openSignEdit('${s.i_info}')">수정</button>
+        </div>
+        <div class="small">분류: ${s.분류||'-'}</div>
+        <div class="small">규격: ${s.c_prn||'-'}</div>`;
+        list.appendChild(col);
     });
   }
+  // ====== 간판 수정/삭제 핸들러 ======
+  window.openSignEdit = async function(i_info){
+    try{
+        // 상세 조회 (없으면 최소 정보로 폼만 띄움)
+        const res = await jget(`${SIGN_BASE}/detail/${i_info}`);
+        if(res && res.ok){
+        const s = res.sign || {};
+        document.getElementById("edit_i_info").value = i_info;
+        document.getElementById("edit_type").value   = s.sc_sbd || s.i_sc_sbd || "";
+        document.getElementById("edit_category").value = s.sc_sbc || s.i_sc_sbc || "";
+        document.getElementById("edit_width").value  = s.q_img_w ?? s.width ?? "";
+        document.getElementById("edit_height").value = s.q_img_h ?? s.height ?? "";
+        document.getElementById("edit_c_prn").value  = s.c_prn || "";
+        }else{
+        // 상세 API 없을 때도 수정 가능하도록 i_info만 세팅
+        document.getElementById("edit_i_info").value = i_info;
+        document.getElementById("edit_type").value = "";
+        document.getElementById("edit_category").value = "";
+        document.getElementById("edit_width").value = "";
+        document.getElementById("edit_height").value = "";
+        document.getElementById("edit_c_prn").value = "";
+        }
+        new bootstrap.Modal(document.getElementById("signEditModal")).show();
+    }catch(e){
+        // 상세 실패해도 폼은 띄워 수정 가능
+        document.getElementById("edit_i_info").value = i_info;
+        new bootstrap.Modal(document.getElementById("signEditModal")).show();
+    }
+    };
+
+    document.getElementById("btnSaveSignEdit").onclick = async ()=>{
+    const i_info = document.getElementById("edit_i_info").value;
+    const payload = {
+        i_info,
+        fields: {
+        sc_sbd: document.getElementById("edit_type").value.trim() || null,
+        sc_sbc: document.getElementById("edit_category").value.trim() || null,
+        q_img_w: document.getElementById("edit_width").value || null,
+        q_img_h: document.getElementById("edit_height").value || null,
+        c_prn:  document.getElementById("edit_c_prn").value.trim() || null
+        }
+    };
+    try{
+        const r = await jpost(`${SIGN_BASE}/update`, payload);
+        if(r.ok){
+        alert("간판 정보가 저장되었습니다.");
+        bootstrap.Modal.getInstance(document.getElementById("signEditModal")).hide();
+        if(state.company){ openCompany(state.company.i_cpn, state.company.company_name); }
+        }else{
+        alert("저장 실패: " + (r.msg||""));
+        }
+    }catch(e){ alert("오류: " + e.message); }
+    };
+
+    window.deleteSign = async function(i_info){
+    if(!confirm(`간판(ID: ${i_info})을 삭제할까요?`)) return;
+    try{
+        const r = await jpost(`${SIGN_BASE}/delete`, { i_info });
+        if(r.ok){
+        alert("삭제 완료");
+        if(state.company){ openCompany(state.company.i_cpn, state.company.company_name); }
+        }else{
+        alert("삭제 실패: " + (r.msg||""));
+        }
+    }catch(e){ alert("오류: " + e.message); }
+  };
+let replaceTarget = null;
+
+// 이미지 더블클릭 → 파일 선택 다이얼로그
+window.openImageReplace = function(i_info){
+  replaceTarget = i_info;
+  document.getElementById("fileReplace").click();
+};
+
+// 파일 선택 업로드
+document.getElementById("fileReplace").addEventListener("change", async (e)=>{
+  if(!replaceTarget) return;
+  const file = e.target.files[0];
+  if(!file) return;
+
+  const formData = new FormData();
+  formData.append("i_info", replaceTarget);
+  formData.append("file", file);
+
+  const res = await fetch(`${SIGN_BASE}/upload_image`, { method:"POST", body:formData }).then(r=>r.json());
+  if(res.ok){
+    alert("이미지 교체 완료");
+    if(state.company){ openCompany(state.company.i_cpn, state.company.company_name); }
+  }else{
+    alert("실패: "+res.msg);
+  }
+  replaceTarget=null; e.target.value="";
+});
+
+// 클립보드 붙여넣기 (Ctrl+V)
+document.addEventListener("paste", async (e)=>{
+  if(!replaceTarget) return;
+  const items = e.clipboardData.items;
+  for(const item of items){
+    if(item.type.indexOf("image")!==-1){
+      const file = item.getAsFile();
+      const formData = new FormData();
+      formData.append("i_info", replaceTarget);
+      formData.append("file", file);
+
+      const res = await fetch(`${SIGN_BASE}/upload_image`, { method:"POST", body:formData }).then(r=>r.json());
+      if(res.ok){
+        alert("클립보드 이미지 교체 완료");
+        if(state.company){ openCompany(state.company.i_cpn, state.company.company_name); }
+      }else{
+        alert("실패: "+res.msg);
+      }
+      replaceTarget=null;
+      break;
+    }
+  }
+});
+
+
+
 
   await loadDongs();
 })();
